@@ -1,53 +1,91 @@
 package com.fourj.orderservice.controller;
 
-import com.fourj.orderservice.dto.OrderDto;
-import com.fourj.orderservice.dto.OrderSearchDto;
-import com.fourj.orderservice.dto.PageResponse;
+import com.fourj.orderservice.dto.OrderRequest;
+import com.fourj.orderservice.dto.OrderResponse;
+import com.fourj.orderservice.entity.OrderStatus;
 import com.fourj.orderservice.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
-@Tag(name = "Order Management", description = "APIs for managing orders")
+@Tag(name = "Order API", description = "API để quản lý đơn hàng")
 public class OrderController {
+
     private final OrderService orderService;
 
     @PostMapping
-    @Operation(summary = "Create a new order", description = "Creates a new order with the provided details")
-    public ResponseEntity<OrderDto> createOrder(@Valid @RequestBody OrderDto orderDto) {
-        return ResponseEntity.ok(orderService.createOrder(orderDto));
+    @Operation(summary = "Tạo đơn hàng mới")
+    public ResponseEntity<OrderResponse> createOrder(
+            @Valid @RequestBody OrderRequest request,
+            Authentication authentication
+    ) {
+        Long userId = Long.parseLong(authentication.getName());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(orderService.createOrder(request, userId));
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Get order by ID", description = "Retrieves an order by its ID")
-    public ResponseEntity<OrderDto> getOrder(
-            @Parameter(description = "ID of the order to retrieve") @PathVariable Long id) {
-        return ResponseEntity.ok(orderService.getOrder(id));
+    @Operation(summary = "Lấy thông tin đơn hàng theo ID")
+    public ResponseEntity<OrderResponse> getOrderById(
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        Long userId = Long.parseLong(authentication.getName());
+        return ResponseEntity.ok(orderService.getOrderById(id, userId));
     }
 
-    @GetMapping("/search")
-    @Operation(summary = "Search orders", description = "Search orders with various criteria and pagination")
-    public ResponseEntity<PageResponse<OrderDto>> searchOrders(
-            @Parameter(description = "Search criteria") @ModelAttribute OrderSearchDto searchDto,
-            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(orderService.searchOrders(searchDto, page, size));
+    @GetMapping("/user")
+    @Operation(summary = "Lấy danh sách đơn hàng của người dùng hiện tại")
+    public ResponseEntity<Page<OrderResponse>> getUserOrders(
+            Pageable pageable,
+            Authentication authentication
+    ) {
+        Long userId = Long.parseLong(authentication.getName());
+        return ResponseEntity.ok(orderService.getUserOrders(userId, pageable));
     }
 
-    @PatchMapping("/{id}/status")
-    @Operation(summary = "Update order status", description = "Updates the status of an existing order")
-    public ResponseEntity<OrderDto> updateOrderStatus(
-            @Parameter(description = "ID of the order to update") @PathVariable Long id,
-            @Parameter(description = "New status for the order") @RequestParam String status) {
+    @GetMapping
+    @Operation(summary = "Lấy tất cả đơn hàng (chỉ admin)")
+    public ResponseEntity<Page<OrderResponse>> getAllOrders(Pageable pageable) {
+        return ResponseEntity.ok(orderService.getAllOrders(pageable));
+    }
+
+    @GetMapping("/status/{status}")
+    @Operation(summary = "Lấy danh sách đơn hàng theo trạng thái (chỉ admin)")
+    public ResponseEntity<Page<OrderResponse>> getOrdersByStatus(
+            @PathVariable OrderStatus status,
+            Pageable pageable
+    ) {
+        return ResponseEntity.ok(orderService.getOrdersByStatus(status, pageable));
+    }
+
+    @PutMapping("/{id}/status")
+    @Operation(summary = "Cập nhật trạng thái đơn hàng (chỉ admin)")
+    public ResponseEntity<OrderResponse> updateOrderStatus(
+            @PathVariable Long id,
+            @RequestParam OrderStatus status
+    ) {
         return ResponseEntity.ok(orderService.updateOrderStatus(id, status));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Hủy đơn hàng")
+    public ResponseEntity<Void> cancelOrder(
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        Long userId = Long.parseLong(authentication.getName());
+        orderService.cancelOrder(id, userId);
+        return ResponseEntity.noContent().build();
     }
 } 
