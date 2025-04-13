@@ -50,6 +50,14 @@ target/
 !**/src/main/resources/bootstrap.properties
 !**/src/main/resources/bootstrap-example.properties
 
+# Ignore all Dockerfiles
+**/Dockerfile
+
+# Ignore all config files (optional: chỉ dùng nếu không cần track chúng)
+**/*.conf
+**/*.json
+**/*.yml
+
 # IDE - IntelliJ
 .idea
 *.iws
