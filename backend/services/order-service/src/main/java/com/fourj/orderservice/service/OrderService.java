@@ -1,0 +1,21 @@
+package com.fourj.orderservice.service;
+
+import com.fourj.orderservice.dto.CreateOrderRequest;
+import com.fourj.orderservice.dto.OrderDto;
+import com.fourj.orderservice.dto.UpdateOrderStatusRequest;
+import com.fourj.orderservice.model.OrderStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+import java.util.List;
+
+public interface OrderService {
+    OrderDto createOrder(String userId, String token, CreateOrderRequest request);
+    OrderDto getOrderById(Long id);
+    OrderDto getOrderByNumber(String orderNumber);
+    Page<OrderDto> getOrdersByUserId(String userId, Pageable pageable);
+    List<OrderDto> getOrdersByStatus(OrderStatus status);
+    OrderDto updateOrderStatus(Long id, UpdateOrderStatusRequest request);
+    void cancelOrder(Long id);
+    OrderDto createOrderFromEvent(String userId, CreateOrderRequest request);
+}
