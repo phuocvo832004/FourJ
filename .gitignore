@@ -52,7 +52,7 @@ target/
 
 # Ignore all Dockerfiles
 **/Dockerfile
-
+**/*.properties
 # Ignore all config files (optional: chỉ dùng nếu không cần track chúng)
 **/*.conf
 **/*.json
