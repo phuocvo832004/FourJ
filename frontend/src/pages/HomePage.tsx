@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Product } from '../types';
-import ProductCard from '../components/common/ProductCard';
-
 // Import hình ảnh sản phẩm
 import product1Image from '../assets/product-1.jpg';
 
@@ -29,12 +27,12 @@ const HomePage: React.FC = () => {
       setIsLoading(true);
       try {
         // Fetch featured products
-        const productsResponse = await fetch('/api/products/featured');
-        if (!productsResponse.ok) {
-          throw new Error('Không thể tải sản phẩm nổi bật');
-        }
+        // const productsResponse = await fetch('/api/products/featured');
+        // if (!productsResponse.ok) {
+        //   throw new Error('Không thể tải sản phẩm nổi bật');
+        // }
         
-        const productsData = await productsResponse.ok ? await productsResponse.json() : [];
+        //const productsData = await productsResponse.ok ? await productsResponse.json() : [];
         
         // Fetch categories
         const categoriesResponse = await fetch('/api/categories');
@@ -44,7 +42,7 @@ const HomePage: React.FC = () => {
         
         const categoriesData = await categoriesResponse.ok ? await categoriesResponse.json() : [];
         
-        setFeaturedProducts(productsData);
+        //setFeaturedProducts(productsData);
         setCategories(categoriesData);
         setError(null);
       } catch (err) {
@@ -106,6 +104,13 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="bg-gray-50">
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+      
       {/* Hero Section */}
       <section className="relative bg-blue-600 text-white">
         <div className="container mx-auto px-4 py-32">
