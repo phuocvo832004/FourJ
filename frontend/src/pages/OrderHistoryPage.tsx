@@ -1,93 +1,122 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth0 } from '@auth0/auth0-react';
-import { Order } from '../types';
+import { useAuth } from '../auth/auth-hooks';
+import ErrorNotification from '../components/ErrorNotification';
 
-// Mock data - trong thực tế sẽ lấy từ API
-const mockOrders: Order[] = [
-  {
-    id: 'order-1',
-    userId: 'user-1',
-    items: [
-      {
-        id: 'item-1',
-        productId: 'product-1',
-        name: 'Điện thoại Samsung Galaxy S21',
-        price: 20990000,
-        quantity: 1,
-        image: 'https://via.placeholder.com/150'
-      }
-    ],
-    total: 20990000,
-    status: 'delivered',
-    createdAt: '2023-04-01T10:30:00Z',
-    shippingAddress: 'Nguyễn Văn A, 123 Đường Lê Lợi, TP. Hồ Chí Minh, 70000, Việt Nam, SĐT: 0901234567',
-    paymentMethod: 'credit_card'
-  },
-  {
-    id: 'order-2',
-    userId: 'user-1',
-    items: [
-      {
-        id: 'item-2',
-        productId: 'product-2',
-        name: 'Laptop Dell XPS 13',
-        price: 35990000,
-        quantity: 1,
-        image: 'https://via.placeholder.com/150'
-      },
-      {
-        id: 'item-3',
-        productId: 'product-3',
-        name: 'Chuột không dây Logitech',
-        price: 790000,
-        quantity: 2,
-        image: 'https://via.placeholder.com/150'
-      }
-    ],
-    total: 37570000,
-    status: 'shipping',
-    createdAt: '2023-04-15T14:20:00Z',
-    shippingAddress: 'Nguyễn Văn A, 123 Đường Lê Lợi, TP. Hồ Chí Minh, 70000, Việt Nam, SĐT: 0901234567',
-    paymentMethod: 'paypal'
-  }
-];
+interface OrderItem {
+  id: string;
+  productId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image: string;
+}
+
+interface OrderResponse {
+  id: string;
+  orderNumber: string;
+  items: OrderItem[];
+  total: number;
+  status: string;
+  createdAt: string;
+  shippingAddress: string;
+  paymentMethod: string;
+  notes?: string;
+}
 
 const OrderHistoryPage: React.FC = () => {
-  const { user, isAuthenticated, isLoading } = useAuth0();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const { user, isAuthenticated, isLoading, getToken } = useAuth();
+  const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  const fetchOrders = useCallback(async () => {
+    if (!isAuthenticated || !user || isInitialized) return;
+    
+    setIsLoadingOrders(true);
+    setError(null);
+    
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Không có token xác thực');
+      }
+      
+      const response = await fetch(`/api/orders?page=${currentPage}&size=5`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        }
+        throw new Error('Không thể tải lịch sử đơn hàng');
+      }
+      
+      const data = await response.json();
+      setOrders(data.content || []);
+      setTotalPages(data.totalPages || 1);
+      setIsInitialized(true);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      setError(error instanceof Error ? error.message : 'Không thể tải lịch sử đơn hàng. Vui lòng thử lại sau.');
+      setOrders([]);
+    } finally {
+      setIsLoadingOrders(false);
+    }
+  }, [isAuthenticated, user, currentPage, getToken, isInitialized]);
+
+  const handleChangePage = (page: number) => {
+    if (page !== currentPage) {
+      setCurrentPage(page);
+      setIsInitialized(false); // Đánh dấu để fetch lại khi trang thay đổi
+    }
+  };
 
   useEffect(() => {
-    // Trong thực tế, đây sẽ là API call để lấy lịch sử đơn hàng
-    const fetchOrders = async () => {
-      setIsLoadingOrders(true);
-      try {
-        // const response = await fetch('/api/orders');
-        // const data = await response.json();
-        // setOrders(data);
-        
-        // Sử dụng mock data
-        setTimeout(() => {
-          setOrders(mockOrders);
-          setIsLoadingOrders(false);
-        }, 1000);
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-        setIsLoadingOrders(false);
+    fetchOrders();
+  }, [fetchOrders]);
+
+  const handleBuyAgain = async (orderId: string) => {
+    if (!isAuthenticated) return;
+    
+    try {
+      const token = await getToken();
+      const response = await fetch(`/api/orders/${orderId}/reorder`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Không thể tạo đơn hàng mới');
       }
-    };
-
-    if (isAuthenticated && user) {
-      fetchOrders();
+      
+      // Chuyển hướng đến trang giỏ hàng sau khi thêm thành công
+      window.location.href = '/cart';
+    } catch (error) {
+      console.error('Error reordering:', error);
+      setError('Không thể tạo lại đơn hàng. Vui lòng thử lại sau.');
     }
-  }, [isAuthenticated, user]);
+  };
 
-  if (isLoading || isLoadingOrders) {
+  const handleRetry = () => {
+    setIsInitialized(false);
+    setError(null);
+  };
+
+  if (isLoading || (isLoadingOrders && !error)) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
         </div>
       </div>
     );
@@ -95,24 +124,42 @@ const OrderHistoryPage: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-md p-8 text-center">
           <p className="text-xl text-gray-600 mb-4">Vui lòng đăng nhập để xem lịch sử đơn hàng</p>
-          <Link to="/" className="inline-block bg-primary-600 text-white px-6 py-3 rounded-md hover:bg-primary-700 transition-colors">
-            Quay lại trang chủ
+          <Link to="/login" className="inline-block bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors">
+            Đăng nhập
           </Link>
         </div>
       </div>
     );
   }
 
-  if (orders.length === 0) {
+  if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <h1 className="text-3xl font-semibold mb-6">Lịch sử đơn hàng</h1>
+        <ErrorNotification message={error} onClose={() => setError(null)} />
+        <div className="bg-white rounded-lg shadow-md p-8 text-center">
+          <p className="text-xl text-gray-600 mb-4">Không thể tải lịch sử đơn hàng</p>
+          <button 
+            onClick={handleRetry} 
+            className="inline-block bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isInitialized && orders.length === 0) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-semibold mb-6">Lịch sử đơn hàng</h1>
         <div className="bg-white rounded-lg shadow-md p-8 text-center">
           <p className="text-xl text-gray-600 mb-4">Bạn chưa có đơn hàng nào</p>
-          <Link to="/products" className="inline-block bg-primary-600 text-white px-6 py-3 rounded-md hover:bg-primary-700 transition-colors">
+          <Link to="/products" className="inline-block bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors">
             Tiếp tục mua sắm
           </Link>
         </div>
@@ -120,20 +167,37 @@ const OrderHistoryPage: React.FC = () => {
     );
   }
 
-  const getStatusColor = (status: Order['status']) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
+      case 'PENDING':
         return 'bg-yellow-100 text-yellow-800';
-      case 'processing':
+      case 'PROCESSING':
         return 'bg-blue-100 text-blue-800';
-      case 'shipping':
+      case 'SHIPPING':
         return 'bg-purple-100 text-purple-800';
-      case 'delivered':
+      case 'DELIVERED':
         return 'bg-green-100 text-green-800';
-      case 'cancelled':
+      case 'CANCELLED':
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'PENDING':
+        return 'Chờ xác nhận';
+      case 'PROCESSING':
+        return 'Đang xử lý';
+      case 'SHIPPING':
+        return 'Đang giao hàng';
+      case 'DELIVERED':
+        return 'Đã giao hàng';
+      case 'CANCELLED':
+        return 'Đã hủy';
+      default:
+        return 'Không xác định';
     }
   };
 
@@ -149,7 +213,7 @@ const OrderHistoryPage: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-semibold mb-6">Lịch sử đơn hàng</h1>
       
       <div className="space-y-6">
@@ -158,16 +222,12 @@ const OrderHistoryPage: React.FC = () => {
             <div className="p-6">
               <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4">
                 <div>
-                  <p className="text-gray-500">Mã đơn hàng: <span className="font-medium text-gray-900">{order.id}</span></p>
+                  <p className="text-gray-500">Mã đơn hàng: <span className="font-medium text-gray-900">#{order.orderNumber}</span></p>
                   <p className="text-gray-500">Ngày đặt: <span className="font-medium text-gray-900">{formatDate(order.createdAt)}</span></p>
                 </div>
                 <div className="mt-2 md:mt-0">
                   <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
-                    {order.status === 'pending' && 'Chờ xác nhận'}
-                    {order.status === 'processing' && 'Đang xử lý'}
-                    {order.status === 'shipping' && 'Đang giao hàng'}
-                    {order.status === 'delivered' && 'Đã giao hàng'}
-                    {order.status === 'cancelled' && 'Đã hủy'}
+                    {getStatusText(order.status)}
                   </span>
                 </div>
               </div>
@@ -190,6 +250,14 @@ const OrderHistoryPage: React.FC = () => {
                         {item.quantity} x {item.price.toLocaleString('vi-VN')}₫
                       </p>
                     </div>
+                    <div className="sm:ml-4 mt-2 sm:mt-0">
+                      <Link 
+                        to={`/products/${item.productId}`}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        Xem sản phẩm
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -201,16 +269,19 @@ const OrderHistoryPage: React.FC = () => {
                 <span className="text-xl font-semibold">{order.total.toLocaleString('vi-VN')}₫</span>
               </div>
               
-              <div className="mt-6 flex justify-between">
+              <div className="mt-6 flex flex-wrap gap-3 justify-between">
                 <Link 
-                  to={`/order/${order.id}`}
-                  className="inline-block bg-white border border-primary-600 text-primary-600 px-6 py-2 rounded-md hover:bg-primary-50 transition-colors"
+                  to={`/orders/${order.id}`}
+                  className="inline-block bg-white border border-blue-600 text-blue-600 px-6 py-2 rounded-md hover:bg-blue-50 transition-colors"
                 >
                   Xem chi tiết
                 </Link>
                 
-                {order.status === 'delivered' && (
-                  <button className="bg-primary-600 text-white px-6 py-2 rounded-md hover:bg-primary-700 transition-colors">
+                {order.status === 'DELIVERED' && (
+                  <button 
+                    onClick={() => handleBuyAgain(order.id)}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                  >
                     Mua lại
                   </button>
                 )}
@@ -219,6 +290,43 @@ const OrderHistoryPage: React.FC = () => {
           </div>
         ))}
       </div>
+      
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-8">
+          <nav className="flex space-x-2" aria-label="Pagination">
+            <button
+              onClick={() => handleChangePage(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="px-4 py-2 border rounded-md bg-white text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:pointer-events-none"
+            >
+              Trước
+            </button>
+            
+            {Array.from({ length: totalPages }).map((_, index) => (
+              <button
+                key={index}
+                onClick={() => handleChangePage(index + 1)}
+                className={`px-4 py-2 border rounded-md ${
+                  currentPage === index + 1
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-blue-600 hover:bg-blue-50'
+                }`}
+              >
+                {index + 1}
+              </button>
+            ))}
+            
+            <button
+              onClick={() => handleChangePage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 border rounded-md bg-white text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:pointer-events-none"
+            >
+              Sau
+            </button>
+          </nav>
+        </div>
+      )}
     </div>
   );
 };

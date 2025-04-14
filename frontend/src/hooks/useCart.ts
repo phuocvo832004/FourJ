@@ -78,7 +78,7 @@ export const useCart = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          productId: item.id,
+          productId: parseInt(item.id, 10),
           quantity: 1
         })
       });

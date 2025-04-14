@@ -12,6 +12,31 @@ const PAYMENT_METHODS = [
   { id: 'BANK_TRANSFER', label: 'Chuyển khoản ngân hàng' }
 ];
 
+// Các tỉnh/thành phố
+const CITIES = [
+  'Hà Nội', 'TP. Hồ Chí Minh', 'Đà Nẵng', 'Hải Phòng', 'Cần Thơ',
+  'An Giang', 'Bà Rịa - Vũng Tàu', 'Bắc Giang', 'Bắc Kạn', 'Bạc Liêu',
+  'Bắc Ninh', 'Bến Tre', 'Bình Định', 'Bình Dương', 'Bình Phước', 
+  'Bình Thuận', 'Cà Mau', 'Cao Bằng', 'Đắk Lắk', 'Đắk Nông', 
+  'Điện Biên', 'Đồng Nai', 'Đồng Tháp', 'Gia Lai', 'Hà Giang', 
+  'Hà Nam', 'Hà Tĩnh', 'Hải Dương', 'Hậu Giang', 'Hòa Bình', 
+  'Hưng Yên', 'Khánh Hòa', 'Kiên Giang', 'Kon Tum', 'Lai Châu', 
+  'Lâm Đồng', 'Lạng Sơn', 'Lào Cai', 'Long An', 'Nam Định', 
+  'Nghệ An', 'Ninh Bình', 'Ninh Thuận', 'Phú Thọ', 'Phú Yên', 
+  'Quảng Bình', 'Quảng Nam', 'Quảng Ngãi', 'Quảng Ninh', 'Quảng Trị', 
+  'Sóc Trăng', 'Sơn La', 'Tây Ninh', 'Thái Bình', 'Thái Nguyên', 
+  'Thanh Hóa', 'Thừa Thiên Huế', 'Tiền Giang', 'Trà Vinh', 'Tuyên Quang', 
+  'Vĩnh Long', 'Vĩnh Phúc', 'Yên Bái'
+];
+
+interface ValidationErrors {
+  fullName?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  postalCode?: string;
+}
+
 const CheckoutPage: React.FC = () => {
   const { items, total: cartTotal, fetchCart } = useCart();
   const { user, getToken } = useAuth();
@@ -19,13 +44,19 @@ const CheckoutPage: React.FC = () => {
   
   const [shippingAddress, setShippingAddress] = useState({
     fullName: user?.name || '',
-    fullAddress: '',
+    phone: '',
+    address: '',
+    city: '',
+    postalCode: ''
   });
-  const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0].id);
+  
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
+  const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[2].id); // Default to COD
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Phí vận chuyển và tổng cộng
   const shippingFee = cartTotal > 0 ? 30000 : 0; // 30,000đ
@@ -36,6 +67,27 @@ const CheckoutPage: React.FC = () => {
       try {
         // Lấy giỏ hàng mới nhất
         await fetchCart();
+        
+        // Nếu user đã có thông tin địa chỉ, tự động điền
+        if (user?.address) {
+          try {
+            const addressParts = user.address.split(', ');
+            if (addressParts.length >= 2) {
+              const city = addressParts.pop();
+              const address = addressParts.join(', ');
+              
+              setShippingAddress(prev => ({
+                ...prev,
+                address,
+                city: city || '',
+                phone: user.phone || '',
+              }));
+            }
+          } catch (e) {
+            console.error('Failed to parse user address', e);
+          }
+        }
+        
         setIsInitialized(true);
       } catch (error) {
         console.error('Error initializing checkout:', error);
@@ -44,14 +96,51 @@ const CheckoutPage: React.FC = () => {
     };
 
     initCheckout();
-  }, [fetchCart]);
+  }, [fetchCart, user]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const validateForm = (): boolean => {
+    const errors: ValidationErrors = {};
+    
+    if (!shippingAddress.fullName.trim()) {
+      errors.fullName = 'Vui lòng nhập họ tên';
+    }
+    
+    if (!shippingAddress.phone.trim()) {
+      errors.phone = 'Vui lòng nhập số điện thoại';
+    } else if (!/^[0-9]{10,11}$/.test(shippingAddress.phone)) {
+      errors.phone = 'Số điện thoại không hợp lệ (10-11 số)';
+    }
+    
+    if (!shippingAddress.address.trim()) {
+      errors.address = 'Vui lòng nhập địa chỉ';
+    }
+    
+    if (!shippingAddress.city) {
+      errors.city = 'Vui lòng chọn tỉnh/thành phố';
+    }
+    
+    if (shippingAddress.postalCode && !/^[0-9]{5,6}$/.test(shippingAddress.postalCode)) {
+      errors.postalCode = 'Mã bưu điện không hợp lệ';
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setShippingAddress({
       ...shippingAddress,
       [name]: value,
     });
+    
+    // Clear validation error when user types
+    if (validationErrors[name as keyof ValidationErrors]) {
+      setValidationErrors({
+        ...validationErrors,
+        [name]: undefined
+      });
+    }
   };
 
   const handlePaymentMethodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,6 +151,10 @@ const CheckoutPage: React.FC = () => {
     setNotes(e.target.value);
   };
 
+  const formatFullAddress = (): string => {
+    return `${shippingAddress.address}, ${shippingAddress.city}${shippingAddress.postalCode ? ', ' + shippingAddress.postalCode : ''}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -70,8 +163,13 @@ const CheckoutPage: React.FC = () => {
       return;
     }
     
+    if (!validateForm()) {
+      return;
+    }
+    
     setIsLoading(true);
     setErrorMessage('');
+    setSuccessMessage('');
     
     try {
       const token = await getToken();
@@ -89,7 +187,9 @@ const CheckoutPage: React.FC = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          shippingAddress: shippingAddress.fullAddress,
+          shippingAddress: formatFullAddress(),
+          recipientName: shippingAddress.fullName,
+          recipientPhone: shippingAddress.phone,
           paymentMethod: paymentMethod,
           notes: notes
         })
@@ -101,7 +201,14 @@ const CheckoutPage: React.FC = () => {
       }
       
       const orderData = await response.json();
-      navigate(`/order-confirmation/${orderData.orderNumber}`);
+      
+      // Set success message first to show feedback to user
+      setSuccessMessage('Đơn hàng của bạn đã được tạo thành công!');
+      
+      // Redirect after short delay
+      setTimeout(() => {
+        navigate(`/order-confirmation/${orderData.orderNumber}`);
+      }, 1000);
     } catch (error: unknown) {
       // Xử lý các loại lỗi từ backend
       const errorMessage = error instanceof Error ? error.message : 'Đã xảy ra lỗi không xác định';
@@ -124,7 +231,7 @@ const CheckoutPage: React.FC = () => {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
         </div>
       </div>
     );
@@ -149,10 +256,22 @@ const CheckoutPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <ErrorNotification 
-        message={errorMessage} 
-        onClose={() => setErrorMessage('')} 
-      />
+      {errorMessage && (
+        <ErrorNotification 
+          message={errorMessage} 
+          onClose={() => setErrorMessage('')} 
+        />
+      )}
+      
+      {successMessage && (
+        <div className="mb-6 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
+          <strong className="font-bold">Thành công! </strong>
+          <span className="block sm:inline">{successMessage}</span>
+          <div className="flex justify-center mt-2">
+            <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-green-600"></div>
+          </div>
+        </div>
+      )}
       
       <h1 className="text-3xl font-bold mb-8">Thanh toán</h1>
 
@@ -164,7 +283,7 @@ const CheckoutPage: React.FC = () => {
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
                 <label htmlFor="fullName" className="block text-gray-700 mb-2">
-                  Họ tên
+                  Họ tên người nhận <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -173,26 +292,105 @@ const CheckoutPage: React.FC = () => {
                   value={shippingAddress.fullName}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    validationErrors.fullName ? 'border-red-500' : ''
+                  }`}
                   disabled={isLoading}
                 />
+                {validationErrors.fullName && (
+                  <p className="text-red-500 text-sm mt-1">{validationErrors.fullName}</p>
+                )}
               </div>
 
-              <div className="mb-6">
-                <label htmlFor="fullAddress" className="block text-gray-700 mb-2">
-                  Địa chỉ đầy đủ
+              <div className="mb-4">
+                <label htmlFor="phone" className="block text-gray-700 mb-2">
+                  Số điện thoại <span className="text-red-500">*</span>
                 </label>
-                <textarea
-                  id="fullAddress"
-                  name="fullAddress"
-                  value={shippingAddress.fullAddress}
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value={shippingAddress.phone}
                   onChange={handleInputChange}
                   required
-                  rows={4}
-                  placeholder="Vui lòng nhập địa chỉ đầy đủ bao gồm số nhà, đường phố, phường/xã, quận/huyện, thành phố, quốc gia"
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0912345678"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    validationErrors.phone ? 'border-red-500' : ''
+                  }`}
                   disabled={isLoading}
                 />
+                {validationErrors.phone && (
+                  <p className="text-red-500 text-sm mt-1">{validationErrors.phone}</p>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label htmlFor="address" className="block text-gray-700 mb-2">
+                  Địa chỉ <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="address"
+                  name="address"
+                  value={shippingAddress.address}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="Số nhà, tên đường, phường/xã, quận/huyện"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    validationErrors.address ? 'border-red-500' : ''
+                  }`}
+                  disabled={isLoading}
+                />
+                {validationErrors.address && (
+                  <p className="text-red-500 text-sm mt-1">{validationErrors.address}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label htmlFor="city" className="block text-gray-700 mb-2">
+                    Tỉnh/Thành phố <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="city"
+                    name="city"
+                    value={shippingAddress.city}
+                    onChange={handleInputChange}
+                    required
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      validationErrors.city ? 'border-red-500' : ''
+                    }`}
+                    disabled={isLoading}
+                  >
+                    <option value="">Chọn tỉnh/thành phố</option>
+                    {CITIES.map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                  {validationErrors.city && (
+                    <p className="text-red-500 text-sm mt-1">{validationErrors.city}</p>
+                  )}
+                </div>
+                <div>
+                  <label htmlFor="postalCode" className="block text-gray-700 mb-2">
+                    Mã bưu điện
+                  </label>
+                  <input
+                    type="text"
+                    id="postalCode"
+                    name="postalCode"
+                    value={shippingAddress.postalCode}
+                    onChange={handleInputChange}
+                    placeholder="Không bắt buộc"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      validationErrors.postalCode ? 'border-red-500' : ''
+                    }`}
+                    disabled={isLoading}
+                  />
+                  {validationErrors.postalCode && (
+                    <p className="text-red-500 text-sm mt-1">{validationErrors.postalCode}</p>
+                  )}
+                </div>
               </div>
 
               <div className="mb-6">
@@ -214,17 +412,17 @@ const CheckoutPage: React.FC = () => {
               <h2 className="text-xl font-semibold mb-4">Phương thức thanh toán</h2>
               <div className="mb-6 space-y-3">
                 {PAYMENT_METHODS.map((method) => (
-                  <label key={method.id} className="flex items-center">
+                  <label key={method.id} className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                     <input
                       type="radio"
                       name="paymentMethod"
                       value={method.id}
                       checked={paymentMethod === method.id}
                       onChange={handlePaymentMethodChange}
-                      className="mr-2"
+                      className="mr-2 h-5 w-5 text-blue-600"
                       disabled={isLoading}
                     />
-                    <span>{method.label}</span>
+                    <span className="text-gray-700">{method.label}</span>
                   </label>
                 ))}
               </div>
@@ -234,7 +432,7 @@ const CheckoutPage: React.FC = () => {
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors disabled:bg-blue-300"
                 disabled={isLoading}
               >
-                {isLoading ? 'Đang xử lý...' : 'Đặt hàng'}
+                {isLoading ? 'Đang xử lý...' : `Đặt hàng (${grandTotal.toLocaleString('vi-VN')}₫)`}
               </button>
             </form>
           </div>
@@ -242,42 +440,40 @@ const CheckoutPage: React.FC = () => {
 
         {/* Right Column - Order Summary */}
         <div>
-          <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="bg-white p-6 rounded-lg shadow-md sticky top-6">
             <h2 className="text-xl font-semibold mb-4">Đơn hàng của bạn</h2>
-            <div className="border-b pb-4 mb-4">
-              {items.length === 0 ? (
-                <p className="text-gray-500">Giỏ hàng trống</p>
-              ) : (
-                <div className="space-y-4">
-                  {items.map((item) => (
-                    <div key={item.id} className="flex justify-between">
-                      <div>
-                        <p className="font-medium">
-                          {item.name} x {item.quantity}
-                        </p>
-                        <p className="text-gray-600 text-sm">{item.category}</p>
-                      </div>
-                      <p className="font-medium">
-                        {(item.price * item.quantity).toLocaleString('vi-VN')}₫
-                      </p>
-                    </div>
-                  ))}
+            <div className="divide-y divide-gray-200">
+              {items.map((item) => (
+                <div key={item.id} className="py-4 flex">
+                  <div className="flex-shrink-0 w-20 h-20">
+                    <img src={item.image} alt={item.name} className="w-full h-full object-cover rounded-md" />
+                  </div>
+                  <div className="ml-4 flex-1">
+                    <h3 className="text-sm font-medium">{item.name}</h3>
+                    <p className="text-sm text-gray-500">
+                      SL: {item.quantity} x {item.price.toLocaleString('vi-VN')}₫
+                    </p>
+                    <p className="text-sm font-medium text-gray-900 mt-1">
+                      {(item.price * item.quantity).toLocaleString('vi-VN')}₫
+                    </p>
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
-            <div className="space-y-2 mb-4">
+            
+            <div className="border-t border-gray-200 mt-6 pt-6 space-y-4">
               <div className="flex justify-between">
-                <p className="text-gray-600">Tổng phụ</p>
-                <p className="font-medium">{cartTotal.toLocaleString('vi-VN')}₫</p>
+                <span className="text-gray-600">Tạm tính</span>
+                <span>{cartTotal.toLocaleString('vi-VN')}₫</span>
               </div>
               <div className="flex justify-between">
-                <p className="text-gray-600">Phí vận chuyển</p>
-                <p className="font-medium">{shippingFee.toLocaleString('vi-VN')}₫</p>
+                <span className="text-gray-600">Phí vận chuyển</span>
+                <span>{shippingFee.toLocaleString('vi-VN')}₫</span>
               </div>
-            </div>
-            <div className="flex justify-between border-t pt-4">
-              <p className="font-semibold">Tổng cộng</p>
-              <p className="font-semibold text-xl">{grandTotal.toLocaleString('vi-VN')}₫</p>
+              <div className="flex justify-between text-lg font-semibold">
+                <span>Tổng cộng</span>
+                <span className="text-blue-600">{grandTotal.toLocaleString('vi-VN')}₫</span>
+              </div>
             </div>
           </div>
         </div>

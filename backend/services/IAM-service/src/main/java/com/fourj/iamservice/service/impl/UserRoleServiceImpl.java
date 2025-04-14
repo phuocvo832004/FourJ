@@ -9,6 +9,7 @@ import com.fourj.iamservice.repository.UserRepository;
 import com.fourj.iamservice.repository.UserRoleRepository;
 import com.fourj.iamservice.service.UserRoleService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,12 +19,16 @@ import java.util.stream.Collectors;
 @Service
 public class UserRoleServiceImpl extends UserRoleService {
 
-    private  UserRoleRepository userRoleRepository;
-    private  UserRepository userRepository;
-    private  RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
 
+    @Autowired
     public UserRoleServiceImpl(UserRoleRepository userRoleRepository, RoleRepository roleRepository, UserRepository userRepository) {
         super(userRoleRepository, roleRepository, userRepository);
+        this.userRoleRepository = userRoleRepository;
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
     }
 
     @Transactional(readOnly = true)

@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public abstract class RoleService {
+public class RoleService {
 
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
@@ -51,10 +51,15 @@ public abstract class RoleService {
     }
 
     @Transactional(readOnly = true)
-    public abstract Optional<RoleDto> getRoleById(Long id);
+    public Optional<RoleDto> getRoleById(Long id) {
+        return roleRepository.findById(id)
+                .map(this::mapToDto);
+    }
 
     @Transactional(readOnly = true)
-    public abstract Optional<RoleDto> getRoleByName(String name);
+    public Optional<RoleDto> getRoleByName(String name){
+        return roleRepository.findByName(name).map(this::mapToDto);
+    }
 
     private RoleDto mapToDto(Role role) {
         Set<PermissionDto> permissionDtos = role.getPermissions().stream()

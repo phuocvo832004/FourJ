@@ -5,4 +5,5 @@ export const auth0Config = {
   redirectUri: window.location.origin,
   audience: "http://localhost:5173",
   scope: "openid profile email roles",
+  rolesNamespace: "https://myapp.example.com/roles"
 }; 
