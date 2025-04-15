@@ -1,6 +1,5 @@
 import { useAuth0 } from "@auth0/auth0-react";
-import { auth0Config } from "./auth0-config";
-import { useEffect, useCallback, useRef } from "react";
+import { useCallback } from "react";
 
 // Hook để kiểm tra xem người dùng đã xác thực hay chưa
 export const useAuth = () => {
@@ -13,46 +12,28 @@ export const useAuth = () => {
     getAccessTokenSilently 
   } = useAuth0();
   
-  // Sử dụng useRef để lưu trữ roles, tránh tạo ra dependency cycle
-  const userRolesRef = useRef<string[]>([]);
-  
-  // Cập nhật userRolesRef khi user thay đổi
-  useEffect(() => {
-    if (user) {
-      userRolesRef.current = user[auth0Config.rolesNamespace] as string[] || [];
-    } else {
-      userRolesRef.current = [];
-    }
-  }, [user]);
-  
-  // Hàm kiểm tra role của người dùng không phụ thuộc vào user nữa
+  // Hàm kiểm tra role của người dùng, đọc trực tiếp từ user object
   const hasRole = useCallback((roleName: string): boolean => {
-    if (!user) return false;
-    
-    // Sử dụng roles từ ref thay vì tính toán lại từ user
-    const roles = userRolesRef.current;
-    // Tắt log cho production
-    // console.log(`Checking role ${roleName}:`, roles);
+    // Nếu user chưa load xong hoặc chưa đăng nhập, không có role
+    if (isLoading || !user) {
+      // console.log("hasRole: isLoading or no user");
+      return false;
+    }
 
-    // Kiểm tra xem có role cần thiết không
-    return roles.includes(roleName);
-  }, [user]); // Chỉ phụ thuộc vào user để kiểm tra null
-  
-  // Debug logging chỉ phụ thuộc vào user, không phụ thuộc vào hasRole
-  useEffect(() => {
-    // Đã tắt debug logging
-    // if (user && process.env.NODE_ENV === 'development') {
-    //   console.log("=== AUTH DEBUG ===");
-    //   console.log("User object:", user);
-    //   console.log(`Roles (${auth0Config.rolesNamespace}):`, user[auth0Config.rolesNamespace]);
-    //   
-    //   // Kiểm tra một số roles cụ thể, nhưng không tạo dependency cycle
-    //   const roles = user[auth0Config.rolesNamespace] as string[] || [];
-    //   const hasAdminRole = roles.includes("admin");
-    //   console.log("Has admin role:", hasAdminRole);
-    //   console.log("=== END AUTH DEBUG ===");
-    // }
-  }, [user]); // Chỉ phụ thuộc vào user
+    // Lấy roles trực tiếp từ user object
+    const roles = user["https://myapp.example.com/roles"];
+
+    // Kiểm tra xem roles có phải là mảng và có chứa role cần tìm không
+    const result = Array.isArray(roles) && roles.includes(roleName);
+
+    // console.log("hasRole check:", {
+    //   roleName,
+    //   userRoles: roles,
+    //   result
+    // });
+
+    return result;
+  }, [user, isLoading]); // Phụ thuộc vào user và isLoading để re-render khi chúng thay đổi
 
   // Hàm đăng nhập
   const login = () => {
@@ -75,7 +56,6 @@ export const useAuth = () => {
       // Kiểm tra lỗi Missing Refresh Token
       const error = err as Error;
       if (error.message && error.message.includes('Missing Refresh Token')) {
-        console.log('Refresh token không có sẵn, đang xóa cache...');
         // Xóa cache Auth0
         localStorage.removeItem('auth0.is.authenticated');
         

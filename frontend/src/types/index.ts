@@ -7,6 +7,7 @@ export interface Product {
   category: string;
   categoryId?: number;
   variant?: string;
+  sellerId?: string;
 }
 
 export interface CartItem extends Product {
@@ -37,4 +38,37 @@ export interface Order {
   createdAt: string;
   shippingAddress: string;
   paymentMethod: 'credit_card' | 'paypal' | 'cod';
+  sellerId?: string;
+}
+
+export interface Seller {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  logo: string;
+  address: string;
+  phoneNumber: string;
+  email: string;
+  rating: number;
+  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  createdAt: string;
+  products?: Product[];
+  orders?: Order[];
+}
+
+export interface SellerApplicationForm {
+  name: string;
+  description: string;
+  logo?: File;
+  address: string;
+  phoneNumber: string;
+  email: string;
+  businessRegistrationNumber?: string;
+  taxId?: string;
+  bankAccount?: {
+    accountNumber: string;
+    accountName: string;
+    bankName: string;
+  };
 } 

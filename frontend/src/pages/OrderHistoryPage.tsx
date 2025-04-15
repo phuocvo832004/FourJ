@@ -45,7 +45,7 @@ const OrderHistoryPage: React.FC = () => {
         throw new Error('Không có token xác thực');
       }
       
-      const response = await fetch(`/api/orders?page=${currentPage}&size=5`, {
+      const response = await fetch(`/api/orders/my-orders?page=${currentPage}&size=5`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

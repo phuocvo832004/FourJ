@@ -27,6 +27,13 @@ import AdminProductsPage from './pages/admin/AdminProductsPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 
+// Seller pages
+import SellerLayout from './components/seller/SellerLayout';
+import SellerDashboardPage from './pages/seller/SellerDashboardPage';
+import SellerProductsPage from './pages/seller/SellerProductsPage';
+import SellerRegistrationPage from './pages/seller/SellerRegistrationPage';
+import SellerPendingPage from './pages/seller/SellerPendingPage';
+
 // Không thể sử dụng useNavigate ở đây vì nó phải được sử dụng bên trong Router
 // Do đó, chúng ta tạo ra Application component riêng biệt
 const Application = () => {
@@ -46,6 +53,8 @@ const Application = () => {
             <Route path="contact" element={<ContactPage />} />
             <Route path="login" element={<LoginPage />} />
             <Route path="unauthorized" element={<UnauthorizedPage />} />
+            <Route path="seller/register" element={<SellerRegistrationPage />} />
+            <Route path="seller/pending" element={<SellerPendingPage />} />
             
             {/* Protected routes - chỉ cần đăng nhập */}
             <Route element={<ProtectedRoute />}>
@@ -77,9 +86,17 @@ const Application = () => {
           
           {/* Seller routes - yêu cầu role "seller" */}
           <Route element={<RoleBasedRoute requiredRole="seller" />}>
-            <Route path="seller/dashboard" element={<div className="p-8"><h1 className="text-3xl font-bold">Seller Dashboard</h1></div>} />
-            <Route path="seller/products" element={<div className="p-8"><h1 className="text-3xl font-bold">Seller Products</h1></div>} />
-            <Route path="seller/orders" element={<div className="p-8"><h1 className="text-3xl font-bold">Seller Orders</h1></div>} />
+            <Route path="/seller" element={<SellerLayout />}>
+              <Route index element={<SellerDashboardPage />} />
+              <Route path="dashboard" element={<SellerDashboardPage />} />
+              <Route path="products" element={<SellerProductsPage />} />
+              <Route path="products/add" element={<div className="p-8"><h1 className="text-3xl font-bold">Thêm sản phẩm mới</h1></div>} />
+              <Route path="products/edit/:id" element={<div className="p-8"><h1 className="text-3xl font-bold">Chỉnh sửa sản phẩm</h1></div>} />
+              <Route path="orders" element={<div className="p-8"><h1 className="text-3xl font-bold">Quản lý đơn hàng</h1></div>} />
+              <Route path="orders/:id" element={<div className="p-8"><h1 className="text-3xl font-bold">Chi tiết đơn hàng</h1></div>} />
+              <Route path="analytics" element={<div className="p-8"><h1 className="text-3xl font-bold">Thống kê</h1></div>} />
+              <Route path="settings" element={<div className="p-8"><h1 className="text-3xl font-bold">Cài đặt cửa hàng</h1></div>} />
+            </Route>
           </Route>
         </Routes>
       </QueryClientProvider>

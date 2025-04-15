@@ -237,6 +237,43 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
+      {/* Seller Section */}
+      <section className="py-16 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="max-w-5xl mx-auto bg-blue-50 rounded-xl shadow-md overflow-hidden">
+            <div className="md:flex">
+              <div className="md:flex-shrink-0 bg-blue-600 md:w-48 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+              </div>
+              <div className="p-8">
+                <div className="uppercase tracking-wide text-sm text-blue-700 font-semibold">Cơ hội dành cho bạn</div>
+                <h2 className="mt-2 text-3xl font-bold text-gray-900">Bắt đầu bán hàng trên nền tảng của chúng tôi</h2>
+                <p className="mt-4 text-gray-600">
+                  Tiếp cận hàng triệu khách hàng và mở rộng kinh doanh của bạn với giải pháp bán hàng trực tuyến của chúng tôi. 
+                  Dễ dàng tạo cửa hàng, quản lý sản phẩm và theo dõi đơn hàng.
+                </p>
+                <div className="mt-6 space-y-4 md:space-y-0 md:space-x-4 md:flex items-center">
+                  <Link 
+                    to="/seller/register" 
+                    className="inline-block px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Đăng ký ngay
+                  </Link>
+                  <Link 
+                    to="/contact" 
+                    className="inline-block px-6 py-3 border border-blue-600 text-blue-600 font-medium rounded-lg hover:bg-blue-50 transition-colors"
+                  >
+                    Tìm hiểu thêm
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Benefit Section */}
       <section className="py-16">
         <div className="container mx-auto px-4">
