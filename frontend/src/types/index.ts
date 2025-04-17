@@ -39,6 +39,10 @@ export interface Order {
   shippingAddress: string;
   paymentMethod: 'credit_card' | 'paypal' | 'cod';
   sellerId?: string;
+  trackingNumber?: string;
+  notes?: string;
+  recipientName: string;
+  recipientPhone: string;
 }
 
 export interface Seller {

@@ -19,6 +19,7 @@ import { RoleBasedRoute } from './auth/RoleBasedRoute';
 import LoginPage from './pages/LoginPage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import ContactPage from './pages/ContactPage';
+import PaymentResultPage from './pages/PaymentResultPage';
 
 // Admin pages
 import AdminLayout from './components/admin/AdminLayout';
@@ -31,6 +32,12 @@ import AdminUsersPage from './pages/admin/AdminUsersPage';
 import SellerLayout from './components/seller/SellerLayout';
 import SellerDashboardPage from './pages/seller/SellerDashboardPage';
 import SellerProductsPage from './pages/seller/SellerProductsPage';
+import SellerProductAddPage from './pages/seller/SellerProductAddPage';
+import SellerProductEditPage from './pages/seller/SellerProductEditPage';
+import SellerOrdersPage from './pages/seller/SellerOrdersPage';
+import SellerOrderDetailPage from './pages/seller/SellerOrderDetailPage';
+import SellerAnalyticsPage from './pages/seller/SellerAnalyticsPage';
+import SellerSettingsPage from './pages/seller/SellerSettingsPage';
 import SellerRegistrationPage from './pages/seller/SellerRegistrationPage';
 import SellerPendingPage from './pages/seller/SellerPendingPage';
 
@@ -55,6 +62,7 @@ const Application = () => {
             <Route path="unauthorized" element={<UnauthorizedPage />} />
             <Route path="seller/register" element={<SellerRegistrationPage />} />
             <Route path="seller/pending" element={<SellerPendingPage />} />
+            <Route path="payment-result" element={<PaymentResultPage />} />
             
             {/* Protected routes - chỉ cần đăng nhập */}
             <Route element={<ProtectedRoute />}>
@@ -90,12 +98,12 @@ const Application = () => {
               <Route index element={<SellerDashboardPage />} />
               <Route path="dashboard" element={<SellerDashboardPage />} />
               <Route path="products" element={<SellerProductsPage />} />
-              <Route path="products/add" element={<div className="p-8"><h1 className="text-3xl font-bold">Thêm sản phẩm mới</h1></div>} />
-              <Route path="products/edit/:id" element={<div className="p-8"><h1 className="text-3xl font-bold">Chỉnh sửa sản phẩm</h1></div>} />
-              <Route path="orders" element={<div className="p-8"><h1 className="text-3xl font-bold">Quản lý đơn hàng</h1></div>} />
-              <Route path="orders/:id" element={<div className="p-8"><h1 className="text-3xl font-bold">Chi tiết đơn hàng</h1></div>} />
-              <Route path="analytics" element={<div className="p-8"><h1 className="text-3xl font-bold">Thống kê</h1></div>} />
-              <Route path="settings" element={<div className="p-8"><h1 className="text-3xl font-bold">Cài đặt cửa hàng</h1></div>} />
+              <Route path="products/add" element={<SellerProductAddPage />} />
+              <Route path="products/edit/:id" element={<SellerProductEditPage />} />
+              <Route path="orders" element={<SellerOrdersPage />} />
+              <Route path="orders/:id" element={<SellerOrderDetailPage />} />
+              <Route path="analytics" element={<SellerAnalyticsPage />} />
+              <Route path="settings" element={<SellerSettingsPage />} />
             </Route>
           </Route>
         </Routes>

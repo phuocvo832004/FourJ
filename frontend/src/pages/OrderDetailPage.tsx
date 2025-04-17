@@ -1,89 +1,263 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useAuth0 } from '@auth0/auth0-react';
+import { useAuth } from '../auth/auth-hooks';
 import { Order } from '../types';
-
-// Mock data - tương tự trong OrderHistoryPage, trong thực tế sẽ lấy từ API
-const mockOrders: Order[] = [
-  {
-    id: 'order-1',
-    userId: 'user-1',
-    items: [
-      {
-        id: 'item-1',
-        productId: 'product-1',
-        name: 'Điện thoại Samsung Galaxy S21',
-        price: 20990000,
-        quantity: 1,
-        image: 'https://via.placeholder.com/150'
-      }
-    ],
-    total: 20990000,
-    status: 'delivered',
-    createdAt: '2023-04-01T10:30:00Z',
-    shippingAddress: 'Nguyễn Văn A, 123 Đường Lê Lợi, TP. Hồ Chí Minh, 70000, Việt Nam, SĐT: 0901234567',
-    paymentMethod: 'credit_card'
-  },
-  {
-    id: 'order-2',
-    userId: 'user-1',
-    items: [
-      {
-        id: 'item-2',
-        productId: 'product-2',
-        name: 'Laptop Dell XPS 13',
-        price: 35990000,
-        quantity: 1,
-        image: 'https://via.placeholder.com/150'
-      },
-      {
-        id: 'item-3',
-        productId: 'product-3',
-        name: 'Chuột không dây Logitech',
-        price: 790000,
-        quantity: 2,
-        image: 'https://via.placeholder.com/150'
-      }
-    ],
-    total: 37570000,
-    status: 'shipping',
-    createdAt: '2023-04-15T14:20:00Z',
-    shippingAddress: 'Nguyễn Văn A, 123 Đường Lê Lợi, TP. Hồ Chí Minh, 70000, Việt Nam, SĐT: 0901234567',
-    paymentMethod: 'paypal'
-  }
-];
+import ErrorNotification from '../components/ErrorNotification';
 
 const OrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { isAuthenticated, isLoading } = useAuth0();
+  const { isAuthenticated, isLoading, getToken } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoadingOrder, setIsLoadingOrder] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   useEffect(() => {
-    // Trong thực tế, đây sẽ là API call để lấy thông tin đơn hàng
     const fetchOrder = async () => {
+      if (!isAuthenticated || !id) return;
+      
       setIsLoadingOrder(true);
+      setError(null);
+      
       try {
-        // const response = await fetch(`/api/orders/${id}`);
-        // const data = await response.json();
-        // setOrder(data);
+        const token = await getToken();
+        if (!token) {
+          throw new Error('Không có token xác thực');
+        }
         
-        // Sử dụng mock data
-        setTimeout(() => {
-          const foundOrder = mockOrders.find(order => order.id === id);
-          setOrder(foundOrder || null);
-          setIsLoadingOrder(false);
-        }, 1000);
+        const response = await fetch(`/api/orders/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+          }
+          throw new Error('Không thể tải thông tin đơn hàng');
+        }
+        
+        const data = await response.json();
+        setOrder(data);
       } catch (error) {
         console.error('Error fetching order:', error);
+        setError(error instanceof Error ? error.message : 'Không thể tải thông tin đơn hàng');
+      } finally {
         setIsLoadingOrder(false);
       }
     };
 
-    if (isAuthenticated && id) {
-      fetchOrder();
+    fetchOrder();
+  }, [isAuthenticated, id, getToken]);
+
+  const handleCancelOrder = async () => {
+    if (!order || !id) return;
+    
+    if (!window.confirm('Bạn có chắc chắn muốn hủy đơn hàng này?')) {
+      return;
     }
-  }, [isAuthenticated, id]);
+    
+    setIsCancelling(true);
+    setError(null);
+    
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Không có token xác thực');
+      }
+      
+      const response = await fetch(`/api/orders/${id}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Không thể hủy đơn hàng');
+      }
+      
+      // Cập nhật trạng thái đơn hàng
+      setOrder(prev => prev ? { ...prev, status: 'cancelled' } : null);
+      
+      // Hiển thị thông báo thành công
+      alert('Đơn hàng đã được hủy thành công');
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      setError(error instanceof Error ? error.message : 'Không thể hủy đơn hàng');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleProcessPayment = async () => {
+    if (!order || !id) return;
+    
+    setIsProcessingPayment(true);
+    setError(null);
+    
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Không có token xác thực');
+      }
+      
+      const response = await fetch(`/api/orders/${id}/payment`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Không thể tạo phiên thanh toán');
+      }
+      
+      const data = await response.json();
+      
+      if (data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+      } else {
+        throw new Error('Không thể tạo phiên thanh toán');
+      }
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      setError(error instanceof Error ? error.message : 'Không thể xử lý thanh toán');
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handleTrackOrder = () => {
+    if (!order?.trackingNumber) {
+      alert('Đơn hàng chưa có mã theo dõi');
+      return;
+    }
+    window.open(`https://tracking.vnpost.vn/#/result?barcode=${order.trackingNumber}`, '_blank');
+  };
+
+  const handlePrintInvoice = () => {
+    if (!order) return;
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Hóa đơn #${order.id}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .info { margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            .total { text-align: right; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>HÓA ĐƠN BÁN HÀNG</h1>
+            <p>Mã đơn hàng: #${order.id}</p>
+            <p>Ngày: ${new Date(order.createdAt).toLocaleDateString('vi-VN')}</p>
+          </div>
+          
+          <div class="info">
+            <p><strong>Người nhận:</strong> ${order.recipientName}</p>
+            <p><strong>Địa chỉ:</strong> ${order.shippingAddress}</p>
+            <p><strong>Số điện thoại:</strong> ${order.recipientPhone}</p>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>Sản phẩm</th>
+                <th>Đơn giá</th>
+                <th>Số lượng</th>
+                <th>Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${order.items.map(item => `
+                <tr>
+                  <td>${item.name}</td>
+                  <td>${item.price.toLocaleString('vi-VN')}₫</td>
+                  <td>${item.quantity}</td>
+                  <td>${(item.price * item.quantity).toLocaleString('vi-VN')}₫</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3" class="total">Tổng cộng:</td>
+                <td>${order.total.toLocaleString('vi-VN')}₫</td>
+              </tr>
+            </tfoot>
+          </table>
+          
+          <div class="info">
+            <p><strong>Phương thức thanh toán:</strong> ${getPaymentMethodName(order.paymentMethod)}</p>
+            <p><strong>Trạng thái:</strong> ${getStatusText(order.status)}</p>
+            ${order.trackingNumber ? `<p><strong>Mã theo dõi:</strong> ${order.trackingNumber}</p>` : ''}
+            ${order.notes ? `<p><strong>Ghi chú:</strong> ${order.notes}</p>` : ''}
+          </div>
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  const getStatusColor = (status: Order['status']) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'processing':
+        return 'bg-blue-100 text-blue-800';
+      case 'shipping':
+        return 'bg-purple-100 text-purple-800';
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusText = (status: Order['status']) => {
+    switch (status) {
+      case 'pending':
+        return 'Chờ xác nhận';
+      case 'processing':
+        return 'Đang xử lý';
+      case 'shipping':
+        return 'Đang giao hàng';
+      case 'delivered':
+        return 'Đã giao hàng';
+      case 'cancelled':
+        return 'Đã hủy';
+      default:
+        return '';
+    }
+  };
+
+  const getPaymentMethodName = (method: Order['paymentMethod']) => {
+    switch (method) {
+      case 'credit_card':
+        return 'Thẻ tín dụng';
+      case 'paypal':
+        return 'PayPal';
+      case 'cod':
+        return 'Thanh toán khi nhận hàng';
+      default:
+        return '';
+    }
+  };
 
   if (isLoading || isLoadingOrder) {
     return (
@@ -121,47 +295,6 @@ const OrderDetailPage: React.FC = () => {
     );
   }
 
-  const getStatusColor = (status: Order['status']) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'processing':
-        return 'bg-blue-100 text-blue-800';
-      case 'shipping':
-        return 'bg-purple-100 text-purple-800';
-      case 'delivered':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
-
-  const getPaymentMethodName = (method: Order['paymentMethod']) => {
-    switch (method) {
-      case 'credit_card':
-        return 'Thẻ tín dụng';
-      case 'paypal':
-        return 'PayPal';
-      case 'cod':
-        return 'Thanh toán khi nhận hàng';
-      default:
-        return '';
-    }
-  };
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
@@ -173,18 +306,61 @@ const OrderDetailPage: React.FC = () => {
         </Link>
       </div>
 
+      {error && <ErrorNotification message={error} onClose={() => setError(null)} />}
+
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="p-6">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6">
             <h1 className="text-2xl font-semibold">Chi tiết đơn hàng #{order.id}</h1>
-            <div className="mt-2 md:mt-0">
-              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
-                {order.status === 'pending' && 'Chờ xác nhận'}
-                {order.status === 'processing' && 'Đang xử lý'}
-                {order.status === 'shipping' && 'Đang giao hàng'}
-                {order.status === 'delivered' && 'Đã giao hàng'}
-                {order.status === 'cancelled' && 'Đã hủy'}
-              </span>
+            <div className="mt-2 md:mt-0 flex gap-2">
+              {order.status === 'pending' && !order.paymentMethod && (
+                <button
+                  onClick={handleProcessPayment}
+                  disabled={isProcessingPayment}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center"
+                >
+                  {isProcessingPayment ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Đang xử lý...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="currentColor"/>
+                        <path d="M12 6C8.69 6 6 8.69 6 12C6 15.31 8.69 18 12 18C15.31 18 18 15.31 18 12C18 8.69 15.31 6 12 6ZM12 16C9.79 16 8 14.21 8 12C8 9.79 9.79 8 12 8C14.21 8 16 9.79 16 12C16 14.21 14.21 16 12 16Z" fill="currentColor"/>
+                      </svg>
+                      Thanh toán
+                    </>
+                  )}
+                </button>
+              )}
+              {order.status === 'pending' && (
+                <button
+                  onClick={handleCancelOrder}
+                  disabled={isCancelling}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                >
+                  {isCancelling ? 'Đang hủy...' : 'Hủy đơn hàng'}
+                </button>
+              )}
+              {order.trackingNumber && (
+                <button
+                  onClick={handleTrackOrder}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Theo dõi đơn hàng
+                </button>
+              )}
+              <button
+                onClick={handlePrintInvoice}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              >
+                In hóa đơn
+              </button>
             </div>
           </div>
 
@@ -193,76 +369,68 @@ const OrderDetailPage: React.FC = () => {
               <h3 className="text-lg font-medium mb-3">Thông tin đơn hàng</h3>
               <div className="bg-gray-50 rounded-lg p-4">
                 <p><span className="font-medium">Mã đơn hàng:</span> {order.id}</p>
-                <p><span className="font-medium">Ngày đặt:</span> {formatDate(order.createdAt)}</p>
-                <p><span className="font-medium">Phương thức thanh toán:</span> {getPaymentMethodName(order.paymentMethod)}</p>
+                <p><span className="font-medium">Ngày đặt:</span> {new Date(order.createdAt).toLocaleDateString('vi-VN')}</p>
+                <p><span className="font-medium">Phương thức thanh toán:</span> {order.paymentMethod ? getPaymentMethodName(order.paymentMethod) : 'Chưa thanh toán'}</p>
+                <p><span className="font-medium">Trạng thái:</span> <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>{getStatusText(order.status)}</span></p>
+                {order.trackingNumber && <p><span className="font-medium">Mã theo dõi:</span> {order.trackingNumber}</p>}
               </div>
             </div>
             
             <div>
               <h3 className="text-lg font-medium mb-3">Thông tin giao hàng</h3>
               <div className="bg-gray-50 rounded-lg p-4">
-                <p><span className="font-medium">Địa chỉ giao hàng:</span> {order.shippingAddress}</p>
+                <p><span className="font-medium">Người nhận:</span> {order.recipientName}</p>
+                <p><span className="font-medium">Số điện thoại:</span> {order.recipientPhone}</p>
+                <p><span className="font-medium">Địa chỉ:</span> {order.shippingAddress}</p>
               </div>
             </div>
           </div>
 
-          <h3 className="text-lg font-medium mb-4">Sản phẩm đã đặt</h3>
-          <div className="border rounded-lg overflow-hidden mb-8">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="py-3 px-4 text-left">Sản phẩm</th>
-                  <th className="py-3 px-4 text-center">Giá</th>
-                  <th className="py-3 px-4 text-center">Số lượng</th>
-                  <th className="py-3 px-4 text-right">Tổng</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {order.items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center">
-                        <img 
-                          src={item.image} 
-                          alt={item.name} 
-                          className="w-16 h-16 object-cover rounded-md mr-4" 
-                        />
-                        <Link to={`/product/${item.productId}`} className="font-medium hover:text-primary-600">
-                          {item.name}
-                        </Link>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4 text-center">{item.price.toLocaleString('vi-VN')}₫</td>
-                    <td className="py-4 px-4 text-center">{item.quantity}</td>
-                    <td className="py-4 px-4 text-right font-medium">
-                      {(item.price * item.quantity).toLocaleString('vi-VN')}₫
-                    </td>
+          <div className="mb-8">
+            <h3 className="text-lg font-medium mb-3">Sản phẩm</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="py-3 px-4 text-left">Sản phẩm</th>
+                    <th className="py-3 px-4 text-center">Đơn giá</th>
+                    <th className="py-3 px-4 text-center">Số lượng</th>
+                    <th className="py-3 px-4 text-center">Thành tiền</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {order.items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center">
+                          <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-md mr-4" />
+                          <div>
+                            <h4 className="font-medium">{item.name}</h4>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-center">{item.price.toLocaleString('vi-VN')}₫</td>
+                      <td className="py-4 px-4 text-center">{item.quantity}</td>
+                      <td className="py-4 px-4 text-center font-medium">{(item.price * item.quantity).toLocaleString('vi-VN')}₫</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-50">
+                  <tr>
+                    <td colSpan={3} className="py-4 px-4 text-right font-medium">Tổng cộng:</td>
+                    <td className="py-4 px-4 text-center font-bold">{order.total.toLocaleString('vi-VN')}₫</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-6">
-            <div className="flex justify-between py-2">
-              <span>Tạm tính:</span>
-              <span>{order.total.toLocaleString('vi-VN')}₫</span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span>Phí vận chuyển:</span>
-              <span>0₫</span>
-            </div>
-            <div className="flex justify-between py-2 font-medium text-lg border-t mt-2 pt-2">
-              <span>Tổng cộng:</span>
-              <span>{order.total.toLocaleString('vi-VN')}₫</span>
-            </div>
-          </div>
-
-          {order.status === 'delivered' && (
-            <div className="mt-8 flex justify-end">
-              <button className="bg-primary-600 text-white px-6 py-2 rounded-md hover:bg-primary-700 transition-colors">
-                Mua lại
-              </button>
+          {order.notes && (
+            <div>
+              <h3 className="text-lg font-medium mb-3">Ghi chú</h3>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p>{order.notes}</p>
+              </div>
             </div>
           )}
         </div>
