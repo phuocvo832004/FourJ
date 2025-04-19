@@ -6,10 +6,9 @@ import ErrorNotification from '../components/ErrorNotification';
 
 // Danh sách phương thức thanh toán phù hợp với backend
 const PAYMENT_METHODS = [
-  { id: 'CREDIT_CARD', label: 'Thẻ tín dụng' },
-  { id: 'PAYPAL', label: 'PayPal' },
+  { id: 'BANK_TRANSFER', label: 'Chuyển khoản ngân hàng' },
   { id: 'COD', label: 'Thanh toán khi nhận hàng' },
-  { id: 'BANK_TRANSFER', label: 'Chuyển khoản ngân hàng' }
+  { id: 'ONLINE_PAYMENT', label: 'Thanh toán trực tuyến' }
 ];
 
 // Các tỉnh/thành phố
@@ -202,12 +201,41 @@ const CheckoutPage: React.FC = () => {
       
       const orderData = await response.json();
       
-      // Set success message first to show feedback to user
+      // Nếu thanh toán trực tuyến, chuyển hướng đến trang thanh toán
+      if (paymentMethod === 'ONLINE_PAYMENT') {
+        // Gọi API để tạo phiên thanh toán
+        const paymentResponse = await fetch(`/api/orders/${orderData.id}/payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!paymentResponse.ok) {
+          // Nếu không tạo được phiên thanh toán, vẫn cho phép xem đơn hàng
+          setSuccessMessage('Đơn hàng đã được tạo, nhưng không thể khởi tạo thanh toán trực tuyến.');
+          setTimeout(() => {
+            navigate(`/order/${orderData.id}`);
+          }, 1500);
+          return;
+        }
+        
+        const paymentData = await paymentResponse.json();
+        
+        // Chuyển hướng đến trang thanh toán
+        if (paymentData.paymentUrl) {
+          window.location.href = paymentData.paymentUrl;
+          return;
+        }
+      }
+      
+      // Nếu không phải thanh toán trực tuyến hoặc không có URL thanh toán
       setSuccessMessage('Đơn hàng của bạn đã được tạo thành công!');
       
       // Redirect after short delay
       setTimeout(() => {
-        navigate(`/order-confirmation/${orderData.orderNumber}`);
+        navigate(`/order/${orderData.id}`);
       }, 1000);
     } catch (error: unknown) {
       // Xử lý các loại lỗi từ backend
