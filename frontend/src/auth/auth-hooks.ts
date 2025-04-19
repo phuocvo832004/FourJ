@@ -49,6 +49,15 @@ export const useAuth = () => {
   const getToken = async () => {
     try {
       const token = await getAccessTokenSilently();
+      
+      // Log token để test với Postman
+      console.log('JWT Token:', token);
+      
+      // Hiển thị thông báo với token để dễ sao chép
+      console.log('%c----- TOKEN FOR POSTMAN -----', 'background: #222; color: #bada55; font-size: 16px');
+      console.log('%cBearer ' + token, 'background: #222; color: #bada55; font-size: 14px');
+      console.log('%c----------------------------', 'background: #222; color: #bada55; font-size: 16px');
+      
       return token;
     } catch (err) {
       console.error("Error getting token:", err);

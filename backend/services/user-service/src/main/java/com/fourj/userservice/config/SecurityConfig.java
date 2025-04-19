@@ -39,7 +39,7 @@ public class SecurityConfig {
         NimbusJwtDecoder jwtDecoder = (NimbusJwtDecoder)
                 JwtDecoders.fromOidcIssuerLocation(issuer);
 
-        String audience = "http://localhost:5173/";
+        String audience = "http://localhost:80/";
         OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audience);
         OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuer);
         OAuth2TokenValidator<Jwt> withAudience = new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator);
