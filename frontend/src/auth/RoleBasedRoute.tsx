@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from './auth-hooks';
 
@@ -7,11 +7,24 @@ interface RoleBasedRouteProps {
   redirectTo?: string;
 }
 
+const BYPASS_ROLE_CHECK = false; 
+
 export const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({
   requiredRole,
   redirectTo = "/unauthorized"
 }) => {
-  const { isAuthenticated, isLoading, hasRole } = useAuth();
+  const { isAuthenticated, isLoading, hasRole, user } = useAuth();
+
+  // Ghi log thông tin debug
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+
+      
+      if (BYPASS_ROLE_CHECK) {
+        console.warn("⚠️ BYPASSING ROLE CHECK FOR DEVELOPMENT - REMOVE IN PRODUCTION ⚠️");
+      }
+    }
+  }, [isLoading, isAuthenticated, requiredRole, hasRole, user]);
 
   // Nếu đang loading, hiển thị spinner
   if (isLoading) {
@@ -28,10 +41,12 @@ export const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({
   }
 
   // Nếu không có role cần thiết, chuyển hướng đến trang không có quyền
-  if (!hasRole(requiredRole)) {
+  const hasRequiredRole = hasRole(requiredRole);
+  if (!hasRequiredRole && !BYPASS_ROLE_CHECK) {
     return <Navigate to={redirectTo} replace />;
   }
 
-  // Nếu đã xác thực và có đủ quyền, hiển thị nội dung
+  // Nếu đã xác thực và có đủ quyền (hoặc bypass được bật), hiển thị nội dung
+  
   return <Outlet />;
 }; 

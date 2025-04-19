@@ -26,6 +26,9 @@ public class PaymentInfo {
     private PaymentStatus paymentStatus;
 
     private String transactionId;
+    private String paymentLinkId; // Thêm cho payOS
+    private String checkoutUrl;   // Thêm cho payOS
+    private Long payOsOrderCode;  // Thêm cho payOS
 
     private LocalDateTime paymentDate;
 

@@ -2,12 +2,16 @@ import React, { useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-hooks';
 import { useCart } from '../../hooks/useCart';
+import Cart from '../common/Cart';
+import { useAppDispatch } from '../../hooks';
+import { updateQuantity, removeItem } from '../../store/cartSlice';
 
 const MainLayout: React.FC = () => {
   const { isAuthenticated, user, login, logout, hasRole } = useAuth();
-  const { items, toggleCart } = useCart();
+  const { items, toggleCart, isOpen } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const dispatch = useAppDispatch();
 
   const cartItemCount = items.reduce((total, item) => total + item.quantity, 0);
 
@@ -216,6 +220,15 @@ const MainLayout: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* Cart Component */}
+      <Cart
+        isOpen={isOpen}
+        onClose={() => toggleCart()}
+        items={items}
+        onUpdateQuantity={(id, quantity) => dispatch(updateQuantity({ id, quantity }))}
+        onRemoveItem={(id) => dispatch(removeItem(id))}
+      />
     </div>
   );
 };

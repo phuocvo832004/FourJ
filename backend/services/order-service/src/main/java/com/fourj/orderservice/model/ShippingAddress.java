@@ -1,9 +1,7 @@
 package com.fourj.orderservice.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Entity
 @Table(name = "shipping_addresses")
@@ -16,8 +14,9 @@ public class ShippingAddress {
     private Long id;
 
     @Column(nullable = false)
-    private String fullAddress;
-    
-    @OneToOne(mappedBy = "shippingAddress")
-    private Order order;
+    private String address;
+
+    public ShippingAddress(String address) {
+        this.address = address;
+    }
 }

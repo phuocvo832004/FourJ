@@ -82,7 +82,6 @@ export const useProductHooks = () => {
       setError(null);
       
       // Dùng đường dẫn tương đối để proxy sẽ chuyển tiếp
-      console.log('Bắt đầu fetch products...');
       const response = await fetch('/api/products');
       
       if (!response.ok) {
@@ -90,7 +89,6 @@ export const useProductHooks = () => {
       }
       
       const responseText = await response.text();
-      console.log('Products Response:', responseText);
       
       let data: PageResponse<ApiProduct>;
       try {
@@ -116,7 +114,6 @@ export const useProductHooks = () => {
         categoryId: item.categoryId
       }));
       
-      console.log('Mapped products:', mappedProducts);
       setProducts(mappedProducts);
       setError(null);
       
@@ -165,7 +162,6 @@ export const useProductHooks = () => {
         },
       ];
       
-      console.log('Using mock data for products');
       setProducts(mockProducts);
       return mockProducts;
     } finally {
@@ -178,7 +174,6 @@ export const useProductHooks = () => {
       setLoading(true);
       setError(null);
       
-      console.log(`Bắt đầu fetch products theo trang: page=${page}, size=${size}...`);
       const response = await fetch(`/api/products?page=${page}&size=${size}`);
       
       if (!response.ok) {
@@ -186,7 +181,6 @@ export const useProductHooks = () => {
       }
       
       const responseText = await response.text();
-      console.log('Products Paginated Response:', responseText);
       
       let data: PageResponse<ApiProduct>;
       try {
@@ -212,7 +206,6 @@ export const useProductHooks = () => {
         categoryId: item.categoryId
       }));
       
-      console.log('Mapped paginated products:', mappedProducts);
       
       return {
         products: mappedProducts,
@@ -247,7 +240,6 @@ export const useProductHooks = () => {
         }
       ];
       
-      console.log('Using mock data for paginated products');
       
       return {
         products: mockProducts,
