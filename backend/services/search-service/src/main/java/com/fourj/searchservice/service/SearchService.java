@@ -122,11 +122,11 @@ public class SearchService {
                         .range(t -> t
                                 .field("price")
                                 .ranges(
-                                        AggregationRange.of(r -> r.to(String.valueOf(500000.0))),
-                                        AggregationRange.of(r -> r.from(String.valueOf(500000.0)).to(String.valueOf(1000000.0))),
-                                        AggregationRange.of(r -> r.from(String.valueOf(1000000.0)).to(String.valueOf(2000000.0))),
-                                        AggregationRange.of(r -> r.from(String.valueOf(2000000.0)).to(String.valueOf(5000000.0))),
-                                        AggregationRange.of(r -> r.from(String.valueOf(5000000.0)))
+                                        AggregationRange.of(r -> r.to(500000.0)),
+                                        AggregationRange.of(r -> r.from(500000.0).to(1000000.0)),
+                                        AggregationRange.of(r -> r.from(1000000.0).to(2000000.0)),
+                                        AggregationRange.of(r -> r.from(2000000.0).to(5000000.0)),
+                                        AggregationRange.of(r -> r.from(5000000.0))
                                 )
                         )
                 );
@@ -186,18 +186,17 @@ public class SearchService {
         // Lọc theo khoảng giá
         PriceRange priceRange = request.getPriceRange();
         if (priceRange != null && (priceRange.getMin() != null || priceRange.getMax() != null)) {
-            RangeQuery.Builder rangeQuery = new RangeQuery.Builder()
-                    .field("price");
-            
-            if (priceRange.getMin() != null) {
-                rangeQuery.gte(JsonData.of(priceRange.getMin()));
-            }
-            
-            if (priceRange.getMax() != null) {
-                rangeQuery.lte(JsonData.of(priceRange.getMax()));
-            }
-            
-            boolQuery.filter(rangeQuery.build()._toQuery());
+            RangeQuery.Builder rq = (RangeQuery.Builder) new RangeQuery.Builder()
+                    .number(nrq -> {
+                        nrq.field("price")                                     // set the field name
+                                .gte(priceRange.getMin().doubleValue());            // lower bound
+                        if (priceRange.getMax() != null) {
+                            nrq.lte(priceRange.getMax().doubleValue());          // upper bound
+                        }
+                        return nrq;
+                    });
+
+            boolQuery.filter(rq.build()._toQuery());
         }
         
         // Lọc theo thuộc tính

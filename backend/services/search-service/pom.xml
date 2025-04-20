@@ -29,7 +29,7 @@
     <properties>
         <java.version>17</java.version>
         <spring-cloud.version>2024.0.1</spring-cloud.version>
-        <elasticsearch.version>8.12.2</elasticsearch.version>
+        <elasticsearch.version>8.18.0</elasticsearch.version>
     </properties>
     <dependencies>
         <dependency>
@@ -45,6 +45,11 @@
                     <artifactId>elasticsearch-rest-high-level-client</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch-core</artifactId>
+            <version>8.18.0</version>
         </dependency>
         <dependency>
             <groupId>co.elastic.clients</groupId>
