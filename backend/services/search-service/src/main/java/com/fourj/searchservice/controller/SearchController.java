@@ -3,6 +3,7 @@ package com.fourj.searchservice.controller;
 import com.fourj.searchservice.document.ProductDocument;
 import com.fourj.searchservice.dto.SearchRequest;
 import com.fourj.searchservice.dto.SearchResponse;
+import com.fourj.searchservice.dto.ProductIndexDto;
 import com.fourj.searchservice.service.SearchService;
 import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
@@ -11,10 +12,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/search")
@@ -206,24 +211,114 @@ public class SearchController {
         if (sortBy == null) {
             return SearchRequest.SortOption.RELEVANCE;
         }
+
+        return switch (sortBy.toLowerCase()) {
+            case "price" -> "asc".equalsIgnoreCase(sortDir)
+                    ? SearchRequest.SortOption.PRICE_ASC
+                    : SearchRequest.SortOption.PRICE_DESC;
+            case "created_at", "createdat", "date" -> SearchRequest.SortOption.NEWEST;
+            case "sold_count", "soldcount", "sales" -> SearchRequest.SortOption.BEST_SELLING;
+            case "rating" -> SearchRequest.SortOption.HIGHEST_RATED;
+            default -> SearchRequest.SortOption.RELEVANCE;
+        };
+    }
+    
+    /**
+     * API để kiểm tra trạng thái của index
+     */
+    @GetMapping("/index-status")
+    public ResponseEntity<Map<String, Object>> getIndexStatus() {
+        try {
+            Map<String, Object> status = searchService.getIndexStatus();
+            return ResponseEntity.ok(status);
+        } catch (Exception e) {
+            log.error("Error getting index status", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * API để xóa và tạo lại index
+     */
+    @PostMapping("/recreate-index")
+    public ResponseEntity<String> recreateIndex() {
+        try {
+            boolean success = searchService.recreateIndex();
+            if (success) {
+                return ResponseEntity.ok("Index recreated successfully");
+            } else {
+                return ResponseEntity.internalServerError().body("Failed to recreate index");
+            }
+        } catch (Exception e) {
+            log.error("Error recreating index", e);
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * API để thêm sản phẩm vào index
+     */
+    @PostMapping("/index-product")
+    public ResponseEntity<String> indexProduct(@RequestBody ProductIndexDto product) {
+        try {
+            boolean success = searchService.indexProduct(product);
+            if (success) {
+                return ResponseEntity.ok("Product indexed successfully");
+            } else {
+                return ResponseEntity.badRequest().body("Failed to index product");
+            }
+        } catch (Exception e) {
+            log.error("Error indexing product", e);
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * API để thêm nhiều sản phẩm vào index (bulk)
+     */
+    @PostMapping("/bulk-index-products")
+    public ResponseEntity<String> bulkIndexProducts(@RequestBody List<ProductIndexDto> products) {
+        try {
+            if (products == null || products.isEmpty()) {
+                return ResponseEntity.badRequest().body("No products provided");
+            }
+            
+            int count = searchService.bulkIndexProducts(products);
+            return ResponseEntity.ok("Indexed " + count + "/" + products.size() + " products successfully");
+        } catch (Exception e) {
+            log.error("Error bulk indexing products", e);
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * API kiểm tra trạng thái hoạt động cơ bản
+     */
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> healthCheck() {
+        Map<String, Object> status = new HashMap<>();
+        status.put("status", "UP");
+        status.put("timestamp", System.currentTimeMillis());
+        status.put("service", "search-service");
         
-        switch (sortBy.toLowerCase()) {
-            case "price":
-                return "asc".equalsIgnoreCase(sortDir) 
-                        ? SearchRequest.SortOption.PRICE_ASC 
-                        : SearchRequest.SortOption.PRICE_DESC;
-            case "created_at":
-            case "createdat":
-            case "date":
-                return SearchRequest.SortOption.NEWEST;
-            case "sold_count":
-            case "soldcount":
-            case "sales":
-                return SearchRequest.SortOption.BEST_SELLING;
-            case "rating":
-                return SearchRequest.SortOption.HIGHEST_RATED;
-            default:
-                return SearchRequest.SortOption.RELEVANCE;
+        return ResponseEntity.ok(status);
+    }
+    
+    /**
+     * API để xóa sản phẩm khỏi index
+     */
+    @DeleteMapping("/product/{id}")
+    public ResponseEntity<String> deleteProduct(@PathVariable String id) {
+        try {
+            boolean success = searchService.deleteProduct(id);
+            if (success) {
+                return ResponseEntity.ok("Product deleted successfully");
+            } else {
+                return ResponseEntity.badRequest().body("Failed to delete product");
+            }
+        } catch (Exception e) {
+            log.error("Error deleting product", e);
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
         }
     }
 } 

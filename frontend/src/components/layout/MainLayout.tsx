@@ -5,6 +5,7 @@ import { useCart } from '../../hooks/useCart';
 import Cart from '../common/Cart';
 import { useAppDispatch } from '../../hooks';
 import { updateQuantity, removeItem } from '../../store/cartSlice';
+import SearchBar from '../common/SearchBar';
 
 const MainLayout: React.FC = () => {
   const { isAuthenticated, user, login, logout, hasRole } = useAuth();
@@ -58,8 +59,13 @@ const MainLayout: React.FC = () => {
 
             {/* Right buttons */}
             <div className="flex items-center space-x-4">
-              {/* Search button */}
-              <Link to="/search" className="p-2 text-gray-600 hover:text-blue-600">
+              {/* SearchBar thay thế search icon */}
+              <div className="hidden md:block w-60">
+                <SearchBar />
+              </div>
+              
+              {/* Mobile search icon */}
+              <Link to="/search" className="md:hidden p-2 text-gray-600 hover:text-blue-600">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>

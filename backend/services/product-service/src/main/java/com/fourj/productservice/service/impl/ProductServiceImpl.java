@@ -4,6 +4,7 @@ import com.fourj.productservice.dto.ProductAttributeDto;
 import com.fourj.productservice.dto.ProductCreateDto;
 import com.fourj.productservice.dto.ProductDto;
 import com.fourj.productservice.dto.ProductUpdateDto;
+import com.fourj.productservice.event.ProductEventPublisher;
 import com.fourj.productservice.exception.ResourceNotFoundException;
 import com.fourj.productservice.model.Category;
 import com.fourj.productservice.model.Product;
@@ -12,6 +13,7 @@ import com.fourj.productservice.repository.CategoryRepository;
 import com.fourj.productservice.repository.ProductAttributeRepository;
 import com.fourj.productservice.repository.ProductRepository;
 import com.fourj.productservice.service.ProductService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,19 +25,23 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ProductAttributeRepository attributeRepository;
+    private final ProductEventPublisher eventPublisher;
 
     @Autowired
     public ProductServiceImpl(ProductRepository productRepository,
                               CategoryRepository categoryRepository,
-                              ProductAttributeRepository attributeRepository) {
+                              ProductAttributeRepository attributeRepository,
+                              ProductEventPublisher eventPublisher) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.attributeRepository = attributeRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -66,7 +72,18 @@ public class ProductServiceImpl implements ProductService {
             }
         }
 
-        return mapToDto(productRepository.findById(savedProduct.getId()).orElseThrow());
+        ProductDto productDto = mapToDto(productRepository.findById(savedProduct.getId()).orElseThrow());
+        
+        // Phát sự kiện sản phẩm được tạo
+        try {
+            eventPublisher.publishProductCreated(productDto);
+            log.info("Published product created event for product ID: {}", productDto.getId());
+        } catch (Exception e) {
+            log.error("Failed to publish product created event for ID: {}", productDto.getId(), e);
+            // Không ảnh hưởng đến transaction chính
+        }
+        
+        return productDto;
     }
 
     @Override
@@ -144,7 +161,18 @@ public class ProductServiceImpl implements ProductService {
             }
         }
 
-        return mapToDto(productRepository.findById(updatedProduct.getId()).orElseThrow());
+        ProductDto productDto = mapToDto(productRepository.findById(updatedProduct.getId()).orElseThrow());
+        
+        // Phát sự kiện sản phẩm được cập nhật
+        try {
+            eventPublisher.publishProductUpdated(productDto);
+            log.info("Published product updated event for product ID: {}", productDto.getId());
+        } catch (Exception e) {
+            log.error("Failed to publish product updated event for ID: {}", productDto.getId(), e);
+            // Không ảnh hưởng đến transaction chính
+        }
+        
+        return productDto;
     }
 
     @Override
@@ -156,6 +184,15 @@ public class ProductServiceImpl implements ProductService {
         // Soft delete - chỉ cập nhật trạng thái active
         product.setActive(false);
         productRepository.save(product);
+        
+        // Phát sự kiện sản phẩm bị xóa
+        try {
+            eventPublisher.publishProductDeleted(id.toString());
+            log.info("Published product deleted event for product ID: {}", id);
+        } catch (Exception e) {
+            log.error("Failed to publish product deleted event for ID: {}", id, e);
+            // Không ảnh hưởng đến transaction chính
+        }
     }
 
     private ProductDto mapToDto(Product product) {

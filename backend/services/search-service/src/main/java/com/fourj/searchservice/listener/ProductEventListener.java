@@ -8,14 +8,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.elasticsearch.core.suggest.Completion;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Component
 @RequiredArgsConstructor
@@ -26,8 +30,9 @@ public class ProductEventListener {
     private final ProductIndexingService productIndexingService;
     
     private static final int BATCH_SIZE = 100;
-    private List<ProductDocument> batchBuffer = new ArrayList<>(BATCH_SIZE);
-    private CountDownLatch batchLatch = new CountDownLatch(BATCH_SIZE);
+    private final List<ProductDocument> batchBuffer = Collections.synchronizedList(new ArrayList<>(BATCH_SIZE));
+    private final AtomicInteger batchCounter = new AtomicInteger(0);
+    private final ReentrantLock batchLock = new ReentrantLock();
     
     @KafkaListener(topics = "${kafka.topics.product-events:product-events}", groupId = "${spring.kafka.consumer.group-id}")
     public void handleProductEvent(String payload) {
@@ -92,6 +97,33 @@ public class ProductEventListener {
         try {
             Long id = productNode.path("id").asLong();
             String name = productNode.path("name").asText();
+            // Xử lý createdAt
+            LocalDateTime createdAt;
+            if (productNode.has("createdAt") && !productNode.path("createdAt").asText().isEmpty()) {
+                try {
+                    createdAt = LocalDateTime.parse(productNode.path("createdAt").asText());
+                } catch (DateTimeParseException e) {
+                    log.warn("Invalid createdAt format: {}, using current time",
+                            productNode.path("createdAt").asText());
+                    createdAt = LocalDateTime.now();
+                }
+            } else {
+                createdAt = LocalDateTime.now();
+            }
+
+            // Xử lý updatedAt
+            LocalDateTime updatedAt;
+            if (productNode.has("updatedAt") && !productNode.path("updatedAt").asText().isEmpty()) {
+                try {
+                    updatedAt = LocalDateTime.parse(productNode.path("updatedAt").asText());
+                } catch (DateTimeParseException e) {
+                    log.warn("Invalid updatedAt format: {}, using current time",
+                            productNode.path("updatedAt").asText());
+                    updatedAt = LocalDateTime.now();
+                }
+            } else {
+                updatedAt = LocalDateTime.now();
+            }
             
             ProductDocument document = ProductDocument.builder()
                     .id(String.valueOf(id))
@@ -104,10 +136,8 @@ public class ProductEventListener {
                     .categoryId(productNode.path("categoryId").asLong())
                     .categoryName(productNode.path("categoryName").asText())
                     .active(productNode.path("active").asBoolean(true))
-                    .createdAt(productNode.has("createdAt") ? 
-                            LocalDateTime.parse(productNode.path("createdAt").asText()) : LocalDateTime.now())
-                    .updatedAt(productNode.has("updatedAt") ? 
-                            LocalDateTime.parse(productNode.path("updatedAt").asText()) : LocalDateTime.now())
+                    .createdAt(createdAt)
+                    .updatedAt(updatedAt)
                     .inStock(productNode.path("stockQuantity").asInt() > 0)
                     .build();
             
@@ -123,8 +153,8 @@ public class ProductEventListener {
                     ProductDocument.ProductAttribute attribute = ProductDocument.ProductAttribute.builder()
                             .name(attrNode.path("name").asText())
                             .value(attrNode.path("value").asText())
-                            .displayName(attrNode.path("name").asText()) // Dùng giá trị mặc định nếu không có displayName
-                            .displayValue(attrNode.path("value").asText()) // Dùng giá trị mặc định nếu không có displayValue
+                            .displayName(attrNode.path("name").asText())
+                            .displayValue(attrNode.path("value").asText())
                             .build();
                     
                     attributes.add(attribute);
@@ -144,24 +174,85 @@ public class ProductEventListener {
      * Xử lý tạo hoặc cập nhật sản phẩm
      * Tối ưu bằng cách gom nhóm các sản phẩm để bulk index
      */
-    private synchronized void handleProductCreateOrUpdate(ProductDocument product) {
+    private void handleProductCreateOrUpdate(ProductDocument product) {
         try {
-            // Thêm sản phẩm vào buffer
-            batchBuffer.add(product);
-            batchLatch.countDown();
+            // Đầu tiên, luôn đảm bảo sản phẩm mới được indexed ngay lập tức
+            try {
+                productIndexingService.indexProduct(product);
+                log.info("Product immediately indexed: {}", product.getId());
+            } catch (Exception e) {
+                log.error("Failed to immediately index product: {}", product.getId(), e);
+            }
             
-            // Nếu buffer đầy hoặc countdown đã hoàn tất, thực hiện bulk index
-            if (batchBuffer.size() >= BATCH_SIZE || batchLatch.getCount() == 0) {
-                List<ProductDocument> batchToProcess = new ArrayList<>(batchBuffer);
-                batchBuffer.clear();
-                batchLatch = new CountDownLatch(BATCH_SIZE);
+            // Vẫn giữ logic batch cho các cập nhật tiếp theo
+            batchLock.lock();
+            try {
+                // Thêm sản phẩm vào buffer
+                batchBuffer.add(product);
+                int currentSize = batchCounter.incrementAndGet();
                 
-                productIndexingService.bulkIndexProducts(batchToProcess);
+                // Nếu buffer đầy, thực hiện bulk index
+                if (currentSize >= BATCH_SIZE) {
+                    List<ProductDocument> batchToProcess = new ArrayList<>(batchBuffer);
+                    batchBuffer.clear();
+                    batchCounter.set(0);
+                    
+                    batchLock.unlock(); // Unlock trước khi gọi service để tránh blocking
+                    
+                    try {
+                        productIndexingService.bulkIndexProducts(batchToProcess);
+                    } catch (Exception e) {
+                        log.error("Error during bulk indexing, processing individually", e);
+                        // Xử lý từng sản phẩm
+                        for (ProductDocument doc : batchToProcess) {
+                            try {
+                                productIndexingService.indexProduct(doc);
+                            } catch (Exception ex) {
+                                log.error("Failed to index individual product: {}", doc.getId(), ex);
+                            }
+                        }
+                    }
+                } else {
+                    batchLock.unlock(); // Unlock nếu chưa đủ kích thước batch
+                }
+            } finally {
+                if (batchLock.isHeldByCurrentThread()) {
+                    batchLock.unlock();
+                }
             }
         } catch (Exception e) {
-            log.error("Error handling product create/update: {}", product.getId(), e);
-            // Xử lý sản phẩm này đơn lẻ để tránh ảnh hưởng đến cả batch
-            productIndexingService.indexProduct(product);
+            log.error("Critical error in batch processing: {}", e.getMessage(), e);
+            // Luôn đảm bảo xử lý sản phẩm hiện tại
+            try {
+                productIndexingService.indexProduct(product);
+            } catch (Exception ignored) {
+                log.error("Failed to index product as fallback: {}", product.getId(), ignored);
+            }
+        }
+    }
+
+    // Thêm scheduler để xử lý batch còn lại nếu không đủ kích thước
+    @Scheduled(fixedDelay = 30000) // 30 giây
+    public void processRemainingBatch() {
+        try {
+            batchLock.lock();
+            if (!batchBuffer.isEmpty()) {
+                log.info("Processing remaining {} items in batch", batchBuffer.size());
+                List<ProductDocument> batchToProcess = new ArrayList<>(batchBuffer);
+                batchBuffer.clear();
+                batchCounter.set(0);
+                
+                batchLock.unlock();
+                
+                productIndexingService.bulkIndexProducts(batchToProcess);
+            } else {
+                batchLock.unlock();
+            }
+        } catch (Exception e) {
+            log.error("Error processing remaining batch", e);
+            if (batchLock.isHeldByCurrentThread()) {
+                batchLock.unlock();
+            }
         }
     }
 } 

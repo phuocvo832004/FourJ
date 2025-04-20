@@ -1,27 +1,29 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCartIcon, UserIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { Link } from 'react-router-dom';
+import { ShoppingCartIcon, UserIcon, MagnifyingGlassIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useAppSelector, useAppDispatch } from '../../hooks';
 import { toggleCart } from '../../store/cartSlice';
 import { RootState } from '../../store/store';
 import { useAuth } from '../../auth/auth-hooks';
 import { CartItem } from '../../types';
 import logoImage from '../../assets/logo.jpg';
+import SearchBar from '../common/SearchBar';
 
 const Header: React.FC = () => {
   const dispatch = useAppDispatch();
-  const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
   const { items } = useAppSelector((state: RootState) => state.cart);
   const { isAuthenticated, isLoading, user, logout } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
 
   const cartItemsCount = items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-    }
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  const toggleSearch = () => {
+    setIsSearchVisible(!isSearchVisible);
   };
 
   return (
@@ -29,40 +31,55 @@ const Header: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link to="/" className="flex-shrink-0">
-            <img className="h-11 w-auto" src={logoImage} alt="Logo" />
-          </Link>
+          <div className="flex items-center">
+            <Link to="/" className="flex-shrink-0">
+              <img className="h-11 w-auto" src={logoImage} alt="Logo" />
+            </Link>
+          </div>
 
-          {/* Navigation */}
-          <nav className="hidden md:flex space-x-8">
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex space-x-6">
             <Link to="/" className="text-gray-700 hover:text-gray-900">Home</Link>
             <Link to="/products" className="text-gray-700 hover:text-gray-900">Products</Link>
             <Link to="/categories" className="text-gray-700 hover:text-gray-900">Categories</Link>
             <Link to="/contact" className="text-gray-700 hover:text-gray-900">Contact</Link>
           </nav>
 
-          {/* Search Bar */}
-          <div className="flex-1 max-w-lg mx-8">
-            <form onSubmit={handleSearch} className="relative">
-              <input
-                type="text"
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-              </div>
-            </form>
+          {/* Desktop Search Bar */}
+          <div className="hidden md:block flex-1 max-w-lg mx-4">
+            <SearchBar />
           </div>
 
-          {/* Icons */}
-          <div className="flex items-center space-x-4">
+          {/* Mobile Search Toggle */}
+          <div className="md:hidden">
+            <button 
+              onClick={toggleSearch}
+              className="text-gray-700 p-2 rounded-md hover:bg-gray-100"
+              aria-label="Toggle search"
+            >
+              <MagnifyingGlassIcon className="h-6 w-6" />
+            </button>
+          </div>
+
+          {/* Mobile Menu Toggle */}
+          <div className="md:hidden">
             <button
-              onClick={() => {
-                dispatch(toggleCart());
-              }}
+              onClick={toggleMobileMenu}
+              className="text-gray-700 p-2 rounded-md hover:bg-gray-100"
+              aria-label="Open menu"
+            >
+              {isMobileMenuOpen ? (
+                <XMarkIcon className="h-6 w-6" />
+              ) : (
+                <Bars3Icon className="h-6 w-6" />
+              )}
+            </button>
+          </div>
+
+          {/* Icons on Desktop */}
+          <div className="hidden md:flex items-center space-x-4">
+            <button
+              onClick={() => dispatch(toggleCart())}
               className="text-gray-700 hover:text-gray-900 relative"
             >
               <ShoppingCartIcon className="h-6 w-6" />
@@ -89,7 +106,7 @@ const Header: React.FC = () => {
                     <UserIcon className="h-6 w-6 text-blue-600" />
                   )}
                 </Link>
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden group-hover:block">
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20 hidden group-hover:block">
                   <Link 
                     to="/account" 
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -114,6 +131,64 @@ const Header: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Mobile Search Bar (toggleable) */}
+        {isSearchVisible && (
+          <div className="pt-2 pb-3 md:hidden">
+            <SearchBar className="w-full" />
+          </div>
+        )}
+
+        {/* Mobile Menu (toggleable) */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden pt-2 pb-4 border-t border-gray-200">
+            <nav className="flex flex-col space-y-2">
+              <Link to="/" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md hover:bg-gray-100">Home</Link>
+              <Link to="/products" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md hover:bg-gray-100">Products</Link>
+              <Link to="/categories" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md hover:bg-gray-100">Categories</Link>
+              <Link to="/contact" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md hover:bg-gray-100">Contact</Link>
+              
+              <hr className="my-1 border-gray-200" />
+              
+              <div className="px-3 py-2">
+                <button
+                  onClick={() => dispatch(toggleCart())}
+                  className="flex items-center text-gray-700 hover:text-gray-900"
+                >
+                  <ShoppingCartIcon className="h-5 w-5 mr-2" />
+                  <span>Giỏ hàng</span>
+                  {cartItemsCount > 0 && (
+                    <span className="ml-2 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {cartItemsCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+              
+              {isAuthenticated ? (
+                <>
+                  <Link to="/account" className="flex items-center text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md hover:bg-gray-100">
+                    <UserIcon className="h-5 w-5 mr-2" />
+                    <span>Tài khoản</span>
+                  </Link>
+                  <button 
+                    onClick={() => logout()}
+                    className="flex items-center text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md hover:bg-gray-100 w-full text-left"
+                  >
+                    <span className="ml-7">Đăng xuất</span>
+                  </button>
+                </>
+              ) : (
+                <Link
+                  to="/login"
+                  className="mx-3 inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500"
+                >
+                  Đăng nhập
+                </Link>
+              )}
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   );

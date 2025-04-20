@@ -1,9 +1,7 @@
 package com.fourj.searchservice.document;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.*;
 import org.springframework.data.elasticsearch.core.suggest.Completion;
@@ -17,18 +15,20 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Getter
 @Document(indexName = "#{@elasticsearchConfig.indexSettings.products.name}")
 public class ProductDocument {
 
     @Id
     private String id;
 
-    @Field(type = FieldType.Text, analyzer = "vietnamese_analyzer", searchAnalyzer = "vietnamese_analyzer")
+    @Field(type = FieldType.Text, analyzer = "standard_lowercase", searchAnalyzer = "standard_lowercase")
     private String name;
 
+    @JsonIgnore
     @CompletionField(
-            analyzer = "vietnamese_analyzer",
-            searchAnalyzer = "vietnamese_analyzer",
+            analyzer = "standard_lowercase",
+            searchAnalyzer = "standard_lowercase",
             contexts = {
                     @CompletionContext(
                             name = "category",
@@ -39,7 +39,7 @@ public class ProductDocument {
     )
     private Completion nameSuggest;
 
-    @Field(type = FieldType.Text, analyzer = "vietnamese_analyzer", searchAnalyzer = "vietnamese_analyzer")
+    @Field(type = FieldType.Text, analyzer = "standard_lowercase", searchAnalyzer = "standard_lowercase")
     private String description;
 
     @Field(type = FieldType.Double)
@@ -105,10 +105,10 @@ public class ProductDocument {
         @Field(type = FieldType.Keyword)
         private String value;
 
-        @Field(type = FieldType.Text, analyzer = "vietnamese_analyzer")
+        @Field(type = FieldType.Text, analyzer = "standard_lowercase")
         private String displayName;
 
-        @Field(type = FieldType.Text, analyzer = "vietnamese_analyzer")
+        @Field(type = FieldType.Text, analyzer = "standard_lowercase")
         private String displayValue;
     }
 }

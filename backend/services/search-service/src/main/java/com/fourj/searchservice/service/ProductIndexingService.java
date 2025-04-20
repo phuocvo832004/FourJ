@@ -7,6 +7,7 @@ import co.elastic.clients.elasticsearch.core.DeleteRequest;
 import co.elastic.clients.elasticsearch.core.IndexRequest;
 import com.fourj.searchservice.config.ElasticsearchConfig;
 import com.fourj.searchservice.document.ProductDocument;
+import com.fourj.searchservice.exception.ElasticsearchException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
@@ -58,7 +59,7 @@ public class ProductIndexingService {
             return true;
         } catch (Exception e) {
             log.error("Failed to index product: {}", product.getId(), e);
-            throw new RuntimeException("Failed to index product", e);
+            throw new ElasticsearchException("Failed to index product: " + product.getId(), e);
         }
     }
     
@@ -67,7 +68,7 @@ public class ProductIndexingService {
      */
     @CircuitBreaker(name = "elasticsearch", fallbackMethod = "deleteProductFallback")
     @Retry(name = "elasticsearch")
-    public boolean deleteProduct(String productId) {
+    public void deleteProduct(String productId) {
         try {
             String indexName = elasticsearchConfig.getIndexSettings().getProducts().getName();
             
@@ -77,7 +78,6 @@ public class ProductIndexingService {
             
             client.delete(request);
             log.info("Product deleted from index: {}", productId);
-            return true;
         } catch (Exception e) {
             log.error("Failed to delete product from index: {}", productId, e);
             throw new RuntimeException("Failed to delete product from index", e);

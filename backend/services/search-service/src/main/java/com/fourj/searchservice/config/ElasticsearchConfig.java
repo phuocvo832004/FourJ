@@ -1,9 +1,13 @@
 package com.fourj.searchservice.config;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.json.JsonpMapper;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpHost;
@@ -54,6 +58,18 @@ public class ElasticsearchConfig {
     }
 
     @Bean
+    public JsonpMapper jsonpMapper() {
+        ObjectMapper om = new ObjectMapper();
+        om.registerModule(new JavaTimeModule());
+        om.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        
+        // Cấu hình để bỏ qua các trường không xác định
+        om.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        
+        return new JacksonJsonpMapper(om);
+    }
+
+    @Bean
     public RestClient restClient() {
         try {
             RestClientBuilder builder = RestClient.builder(
@@ -97,12 +113,9 @@ public class ElasticsearchConfig {
     }
 
     @Bean
-    public ElasticsearchClient elasticsearchClient(RestClient restClient) {
+    public ElasticsearchClient elasticsearchClient(RestClient restClient, JsonpMapper jsonpMapper) {
         try {
-            // Sử dụng Jackson để mapping JSON
-            JacksonJsonpMapper jsonpMapper = new JacksonJsonpMapper();
-            
-            // Tạo transport sử dụng RestClient và mapper
+            // Tạo transport sử dụng RestClient và mapper đã cấu hình
             ElasticsearchTransport transport = new RestClientTransport(restClient, jsonpMapper);
             
             // Tạo client sử dụng transport
