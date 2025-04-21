@@ -111,7 +111,12 @@ const AdminUsersPage: React.FC = () => {
     search: '',
     role: '',
     status: '',
+    dateRange: '',
+    orderCount: '',
   });
+
+  // State cho tìm kiếm nâng cao
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
 
   // State cho việc chỉnh sửa người dùng
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -134,8 +139,72 @@ const AdminUsersPage: React.FC = () => {
     const matchesRole = filters.role === '' || user.role === filters.role;
     const matchesStatus = filters.status === '' || user.status === filters.status;
     
-    return matchesSearch && matchesRole && matchesStatus;
+    // Lọc theo số lượng đơn hàng
+    let matchesOrderCount = true;
+    if (filters.orderCount !== '') {
+      if (filters.orderCount === 'none') {
+        matchesOrderCount = user.orders === 0;
+      } else if (filters.orderCount === 'low') {
+        matchesOrderCount = user.orders >= 1 && user.orders <= 5;
+      } else if (filters.orderCount === 'medium') {
+        matchesOrderCount = user.orders >= 6 && user.orders <= 15;
+      } else if (filters.orderCount === 'high') {
+        matchesOrderCount = user.orders > 15;
+      }
+    }
+    
+    // Lọc theo khoảng thời gian tham gia
+    let matchesDateRange = true;
+    if (filters.dateRange !== '') {
+      const userJoinDate = new Date(user.joinDate.split('/').reverse().join('-'));
+      const today = new Date();
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(today.getMonth() - 1);
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(today.getMonth() - 3);
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(today.getMonth() - 6);
+      
+      if (filters.dateRange === 'last_month') {
+        matchesDateRange = userJoinDate >= oneMonthAgo;
+      } else if (filters.dateRange === 'last_3_months') {
+        matchesDateRange = userJoinDate >= threeMonthsAgo;
+      } else if (filters.dateRange === 'last_6_months') {
+        matchesDateRange = userJoinDate >= sixMonthsAgo;
+      }
+    }
+    
+    return matchesSearch && matchesRole && matchesStatus && matchesOrderCount && matchesDateRange;
   });
+
+  // Xuất dữ liệu người dùng ra CSV
+  const exportToCSV = () => {
+    const headers = ['ID', 'Tên', 'Email', 'Vai trò', 'Trạng thái', 'Ngày tham gia', 'Đăng nhập gần đây', 'Số đơn hàng'];
+    
+    const csvData = [
+      headers.join(','),
+      ...filteredUsers.map(user => [
+        user.id,
+        `"${user.name}"`,
+        user.email,
+        user.role,
+        user.status,
+        user.joinDate,
+        user.lastLogin,
+        user.orders
+      ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `users_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Xử lý mở modal chỉnh sửa người dùng
   const handleEditUser = (user: User) => {
@@ -196,7 +265,16 @@ const AdminUsersPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Quản lý người dùng</h1>
-        <div className="mt-4 md:mt-0">
+        <div className="mt-4 md:mt-0 flex space-x-3">
+          <button
+            onClick={exportToCSV}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <svg className="-ml-1 mr-2 h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            Xuất CSV
+          </button>
           <button
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
@@ -260,6 +338,70 @@ const AdminUsersPage: React.FC = () => {
             </select>
           </div>
         </div>
+
+        <div className="mt-3">
+          <button
+            type="button"
+            className="text-sm text-indigo-600 hover:text-indigo-900 font-medium flex items-center"
+            onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+          >
+            {showAdvancedSearch ? (
+              <>
+                <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+                Ẩn tìm kiếm nâng cao
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                Hiện tìm kiếm nâng cao
+              </>
+            )}
+          </button>
+        </div>
+
+        {showAdvancedSearch && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-200">
+            <div>
+              <label htmlFor="dateRange" className="block text-sm font-medium text-gray-700 mb-1">
+                Thời gian tham gia
+              </label>
+              <select
+                id="dateRange"
+                name="dateRange"
+                value={filters.dateRange}
+                onChange={handleFilterChange}
+                className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+              >
+                <option value="">Tất cả thời gian</option>
+                <option value="last_month">Tháng vừa qua</option>
+                <option value="last_3_months">3 tháng vừa qua</option>
+                <option value="last_6_months">6 tháng vừa qua</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="orderCount" className="block text-sm font-medium text-gray-700 mb-1">
+                Số lượng đơn hàng
+              </label>
+              <select
+                id="orderCount"
+                name="orderCount"
+                value={filters.orderCount}
+                onChange={handleFilterChange}
+                className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+              >
+                <option value="">Tất cả</option>
+                <option value="none">Chưa có đơn hàng</option>
+                <option value="low">Ít (1-5)</option>
+                <option value="medium">Trung bình (6-15)</option>
+                <option value="high">Nhiều ({'>'}15)</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Danh sách người dùng */}

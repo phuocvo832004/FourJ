@@ -269,7 +269,7 @@ const OrderHistoryPage: React.FC = () => {
               
               <div className="flex justify-between items-center">
                 <span className="text-lg font-medium">Tổng cộng:</span>
-                <span className="text-xl font-semibold">{order.total.toLocaleString('vi-VN')}₫</span>
+                <span className="text-xl font-semibold">{(order.total || 0).toLocaleString('vi-VN')}₫</span>
               </div>
               
               <div className="mt-6 flex flex-wrap gap-3 justify-between">

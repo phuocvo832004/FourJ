@@ -5,6 +5,26 @@ import product1Image from '../assets/product-1.jpg';
 import { useCart } from '../hooks/useCart';
 import apiClient from '../api/apiClient';
 
+// Interface cho API response có thể chứa stock_quantity
+interface ApiProductResponse {
+  id: number;
+  name: string;
+  price: number;
+  description: string;
+  imageUrl?: string;
+  // Thêm các trường cho danh mục theo đúng API
+  category?: {
+    id: number;
+    name: string;
+  };
+  categoryId?: number;
+  categoryName?: string;
+  stock_quantity?: number;
+  stockQuantity?: number;
+  isActive: boolean;
+}
+
+// Interface chuẩn cho sản phẩm trong ứng dụng
 interface ApiProduct {
   id: number;
   name: string;
@@ -15,16 +35,11 @@ interface ApiProduct {
     id: number;
     name: string;
   };
-  stock: number;
+  // Lưu giữ cả hai giá trị để xử lý linh hoạt
+  categoryId?: number;
+  categoryName?: string;
+  stockQuantity: number;
   isActive: boolean;
-}
-
-interface Review {
-  id: number;
-  userName: string;
-  rating: number;
-  comment: string;
-  createdDate: string;
 }
 
 const ProductDetailPage: React.FC = () => {
@@ -36,13 +51,6 @@ const ProductDetailPage: React.FC = () => {
   const [product, setProduct] = useState<ApiProduct | null>(null);
   const [isLoadingProduct, setIsLoadingProduct] = useState(true);
   const [productError, setProductError] = useState<string | null>(null);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [reviewData, setReviewData] = useState({
-    rating: 5,
-    comment: '',
-    userName: ''
-  });
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -52,8 +60,42 @@ const ProductDetailPage: React.FC = () => {
       setProductError(null);
       
       try {
-        const response = await apiClient.get(`/products/${id}`);
-        setProduct(response.data);
+        const response = await apiClient.get<ApiProductResponse>(`/product/${id}`);
+        
+        // Chuyển đổi từ response format sang ApiProduct format
+        const productData = response.data;
+        
+        // Xử lý danh mục - ưu tiên cấu trúc object category trước
+        let categoryName = 'Uncategorized';
+        let categoryId: number | undefined = undefined;
+        
+        // Trường hợp 1: API trả về object category
+        if (productData.category && productData.category.name) {
+          categoryName = productData.category.name;
+          categoryId = productData.category.id;
+        } 
+        // Trường hợp 2: API trả về trường categoryName trực tiếp
+        else if (productData.categoryName) {
+          categoryName = productData.categoryName;
+          categoryId = productData.categoryId;
+        }
+        
+        const normalizedProduct: ApiProduct = {
+          id: productData.id,
+          name: productData.name,
+          price: productData.price,
+          description: productData.description,
+          imageUrl: productData.imageUrl,
+          // Lưu trữ cả hai định dạng của danh mục để đảm bảo tương thích
+          category: productData.category || (categoryId ? { id: categoryId, name: categoryName } : undefined),
+          categoryId: categoryId || productData.categoryId,
+          categoryName: categoryName,
+          stockQuantity: productData.stockQuantity || productData.stock_quantity || 0,
+          isActive: productData.isActive
+        };
+        
+        console.log('Normalized product:', normalizedProduct);
+        setProduct(normalizedProduct);
       } catch (error) {
         console.error('Error fetching product:', error);
         setProductError('Không thể tải thông tin sản phẩm. Vui lòng thử lại sau.');
@@ -64,24 +106,12 @@ const ProductDetailPage: React.FC = () => {
     
     fetchProduct();
   }, [id]);
-  
-  useEffect(() => {
-    const fetchReviews = async () => {
-      if (!id) return;
-      
-      try {
-        const response = await apiClient.get(`/products/${id}/reviews`);
-        setReviews(response.data);
-      } catch (error) {
-        console.error('Error fetching reviews:', error);
-      }
-    };
-    
-    fetchReviews();
-  }, [id]);
 
   const handleAddToCart = () => {
     if (!product) return;
+    
+    // Sử dụng categoryName hoặc category.name - đảm bảo có giá trị
+    const categoryDisplay = product.categoryName || product.category?.name || 'Uncategorized';
     
     addItem({
       id: product.id.toString(),
@@ -89,45 +119,9 @@ const ProductDetailPage: React.FC = () => {
       price: product.price,
       description: product.description,
       image: product.imageUrl || product1Image,
-      category: product.category?.name || 'Uncategorized',
+      category: categoryDisplay,
       quantity
     });
-  };
-
-  const handleReviewSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!reviewData.userName.trim() || !reviewData.comment.trim()) {
-      alert('Vui lòng điền đầy đủ thông tin');
-      return;
-    }
-    
-    try {
-      const response = await apiClient.post(`/products/${id}/reviews`, {
-        userName: reviewData.userName,
-        rating: reviewData.rating,
-        comment: reviewData.comment
-      });
-      
-      // Đã nhận được response
-      setReviews(prev => [...prev, response.data]);
-      setReviewData({ rating: 5, comment: '', userName: '' });
-      setShowReviewForm(false);
-    } catch (err) {
-      console.error('Error submitting review:', err);
-      // For development, simulate a successful review submission
-      const mockNewReview = {
-        id: reviews.length + 1,
-        userName: reviewData.userName,
-        rating: reviewData.rating,
-        comment: reviewData.comment,
-        createdDate: new Date().toISOString().split('T')[0]
-      };
-      
-      setReviews(prev => [...prev, mockNewReview]);
-      setReviewData({ rating: 5, comment: '', userName: '' });
-      setShowReviewForm(false);
-    }
   };
 
   if (isLoadingProduct) {
@@ -161,14 +155,10 @@ const ProductDetailPage: React.FC = () => {
     [product.imageUrl, product.imageUrl, product.imageUrl] : 
     [product1Image, product1Image, product1Image];
 
-  const averageRating = reviews.length > 0 
-    ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
-    : 0;
-
-  // Create specs object from product properties
+  // Create specs object from product properties - sử dụng cả hai định dạng danh mục
   const specs = {
-    'Danh mục': product.category?.name || 'Uncategorized',
-    'Kho hàng': product.stock > 0 ? `Còn ${product.stock} sản phẩm` : 'Hết hàng',
+    'Danh mục': product.categoryName || product.category?.name || 'Uncategorized',
+    'Kho hàng': product.stockQuantity > 0 ? `Còn ${product.stockQuantity} sản phẩm` : 'Hết hàng',
     'Trạng thái': product.isActive ? 'Đang kinh doanh' : 'Ngừng kinh doanh',
   };
 
@@ -201,25 +191,6 @@ const ProductDetailPage: React.FC = () => {
         <div className="space-y-6">
           <h1 className="text-3xl font-bold">{product.name}</h1>
           
-          {/* Rating display */}
-          <div className="flex items-center space-x-2">
-            <div className="flex">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <svg 
-                  key={star} 
-                  className={`w-5 h-5 ${star <= Math.round(averageRating) ? 'text-yellow-400' : 'text-gray-300'}`} 
-                  fill="currentColor" 
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
-              ))}
-            </div>
-            <span className="text-sm text-gray-600">
-              ({reviews.length} đánh giá)
-            </span>
-          </div>
-          
           <p className="text-2xl font-bold text-blue-600">{product.price.toFixed(2)} VND</p>
           
           <div className="bg-gray-50 p-4 rounded-lg">
@@ -239,29 +210,29 @@ const ProductDetailPage: React.FC = () => {
               </button>
               <span className="px-4 py-2">{quantity}</span>
               <button
-                onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                onClick={() => setQuantity(Math.min(product.stockQuantity, quantity + 1))}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100"
-                disabled={quantity >= product.stock}
+                disabled={quantity >= product.stockQuantity}
               >
                 +
               </button>
             </div>
             <span className="text-sm text-gray-500">
-              {product.stock > 0 ? `${product.stock} sản phẩm có sẵn` : 'Hết hàng'}
+              {product.stockQuantity > 0 ? `${product.stockQuantity} sản phẩm có sẵn` : 'Hết hàng'}
             </span>
           </div>
 
           {/* Add to Cart Button */}
           <button 
             className={`w-full py-3 rounded-lg text-lg font-semibold transition-colors ${
-              product.stock > 0 
+              product.stockQuantity > 0 
                 ? 'bg-blue-600 hover:bg-blue-700 text-white' 
                 : 'bg-gray-400 cursor-not-allowed text-white'
             }`}
             onClick={handleAddToCart}
-            disabled={product.stock <= 0}
+            disabled={product.stockQuantity <= 0}
           >
-            {product.stock > 0 ? 'Thêm vào giỏ hàng' : 'Hết hàng'}
+            {product.stockQuantity > 0 ? 'Thêm vào giỏ hàng' : 'Hết hàng'}
           </button>
 
           {/* Specifications */}
@@ -278,126 +249,8 @@ const ProductDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Reviews Section */}
-      <div className="mt-16">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">Đánh giá sản phẩm</h2>
-          <button 
-            onClick={() => setShowReviewForm(!showReviewForm)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            {showReviewForm ? 'Đóng' : 'Viết đánh giá'}
-          </button>
-        </div>
-
-        {/* Review Form */}
-        {showReviewForm && (
-          <div className="bg-gray-50 p-6 rounded-lg mb-8">
-            <h3 className="text-lg font-semibold mb-4">Đánh giá của bạn</h3>
-            <form onSubmit={handleReviewSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tên của bạn
-                </label>
-                <input
-                  type="text"
-                  value={reviewData.userName}
-                  onChange={(e) => setReviewData({...reviewData, userName: e.target.value})}
-                  className="w-full p-2 border rounded-md"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Đánh giá
-                </label>
-                <div className="flex space-x-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button 
-                      key={star}
-                      type="button"
-                      onClick={() => setReviewData({...reviewData, rating: star})}
-                      className="focus:outline-none"
-                    >
-                      <svg 
-                        className={`w-8 h-8 ${star <= reviewData.rating ? 'text-yellow-400' : 'text-gray-300'}`} 
-                        fill="currentColor" 
-                        viewBox="0 0 20 20"
-                      >
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nhận xét của bạn
-                </label>
-                <textarea
-                  value={reviewData.comment}
-                  onChange={(e) => setReviewData({...reviewData, comment: e.target.value})}
-                  className="w-full p-2 border rounded-md h-32"
-                  required
-                />
-              </div>
-              
-              <button 
-                type="submit"
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Gửi đánh giá
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Reviews List */}
-        {reviews.length > 0 ? (
-          <div className="space-y-6">
-            {reviews.map((review) => (
-              <div key={review.id} className="border-b pb-6">
-                <div className="flex justify-between">
-                  <div>
-                    <h4 className="font-semibold">{review.userName}</h4>
-                    <div className="flex items-center mt-1">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <svg 
-                          key={star} 
-                          className={`w-4 h-4 ${star <= review.rating ? 'text-yellow-400' : 'text-gray-300'}`} 
-                          fill="currentColor" 
-                          viewBox="0 0 20 20"
-                        >
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {review.createdDate}
-                  </div>
-                </div>
-                <p className="mt-2 text-gray-700">{review.comment}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-600">Chưa có đánh giá nào cho sản phẩm này</p>
-            <button 
-              onClick={() => setShowReviewForm(true)}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Hãy là người đầu tiên đánh giá
-            </button>
-          </div>
-        )}
-      </div>
     </div>
   );
 };
 
-export default ProductDetailPage; 
+export default ProductDetailPage;

@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { ApiProvider } from './api/ApiProvider';
 import MainLayout from './components/layout/MainLayout';
 import HomePage from './pages/HomePage';
 import ProductsPage from './pages/ProductsPage';
@@ -27,6 +28,8 @@ import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminProductsPage from './pages/admin/AdminProductsPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
+import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
+import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 
 // Seller pages
 import SellerLayout from './components/seller/SellerLayout';
@@ -48,66 +51,70 @@ const Application = () => {
   
   return (
     <Auth0ProviderWithNavigate>
-      <QueryClientProvider client={queryClient}>
-        <Routes>
-          <Route path="/" element={<MainLayout />}>
-            <Route index element={<HomePage />} />
-            <Route path="products" element={<ProductsPage />} />
-            <Route path="product/:id" element={<ProductDetailPage />} />
-            <Route path="categories" element={<CategoriesPage />} />
-            <Route path="cart" element={<CartPage />} />
-            <Route path="search" element={<SearchResultsPage />} />
-            <Route path="contact" element={<ContactPage />} />
-            <Route path="login" element={<LoginPage />} />
-            <Route path="unauthorized" element={<UnauthorizedPage />} />
-            <Route path="seller/register" element={<SellerRegistrationPage />} />
-            <Route path="seller/pending" element={<SellerPendingPage />} />
-            <Route path="payment-result" element={<PaymentResultPage />} />
-            
-            {/* Protected routes - chỉ cần đăng nhập */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="account" element={<AccountPage />} />
-            </Route>
+      <ApiProvider>
+        <QueryClientProvider client={queryClient}>
+          <Routes>
+            <Route path="/" element={<MainLayout />}>
+              <Route index element={<HomePage />} />
+              <Route path="products" element={<ProductsPage />} />
+              <Route path="product/:id" element={<ProductDetailPage />} />
+              <Route path="categories" element={<CategoriesPage />} />
+              <Route path="cart" element={<CartPage />} />
+              <Route path="search" element={<SearchResultsPage />} />
+              <Route path="contact" element={<ContactPage />} />
+              <Route path="login" element={<LoginPage />} />
+              <Route path="unauthorized" element={<UnauthorizedPage />} />
+              <Route path="seller/register" element={<SellerRegistrationPage />} />
+              <Route path="seller/pending" element={<SellerPendingPage />} />
+              <Route path="payment-result" element={<PaymentResultPage />} />
+              
+              {/* Protected routes - chỉ cần đăng nhập */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="account" element={<AccountPage />} />
+              </Route>
 
-            {/* Role-based routes - yêu cầu role "user" */}
-            <Route element={<RoleBasedRoute requiredRole="user" />}>
-              <Route path="checkout" element={<CheckoutPage />} />
-              <Route path="orders" element={<OrderHistoryPage />} />
-              <Route path="order/:id" element={<OrderDetailPage />} />
-              <Route path="order-confirmation/:orderId" element={<OrderConfirmationPage />} />
+              {/* Role-based routes - yêu cầu role "user" */}
+              <Route element={<RoleBasedRoute requiredRole="user" />}>
+                <Route path="checkout" element={<CheckoutPage />} />
+                <Route path="orders" element={<OrderHistoryPage />} />
+                <Route path="order/:id" element={<OrderDetailPage />} />
+                <Route path="order-confirmation/:orderId" element={<OrderConfirmationPage />} />
+              </Route>
+              
+              {/* Catch all route for 404 */}
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
             
-            {/* Catch all route for 404 */}
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-          
-          {/* Admin routes - yêu cầu role "admin" */}
-          <Route element={<RoleBasedRoute requiredRole="admin" />}>
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<AdminDashboardPage />} />
-              <Route path="dashboard" element={<AdminDashboardPage />} />
-              <Route path="products" element={<AdminProductsPage />} />
-              <Route path="orders" element={<AdminOrdersPage />} />
-              <Route path="users" element={<AdminUsersPage />} />
+            {/* Admin routes - yêu cầu role "admin" */}
+            <Route element={<RoleBasedRoute requiredRole="admin" />}>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<AdminDashboardPage />} />
+                <Route path="dashboard" element={<AdminDashboardPage />} />
+                <Route path="products" element={<AdminProductsPage />} />
+                <Route path="orders" element={<AdminOrdersPage />} />
+                <Route path="users" element={<AdminUsersPage />} />
+                <Route path="analytics" element={<AdminAnalyticsPage />} />
+                <Route path="settings" element={<AdminSettingsPage />} />
+              </Route>
             </Route>
-          </Route>
-          
-          {/* Seller routes - yêu cầu role "seller" */}
-          <Route element={<RoleBasedRoute requiredRole="seller" />}>
-            <Route path="/seller" element={<SellerLayout />}>
-              <Route index element={<SellerDashboardPage />} />
-              <Route path="dashboard" element={<SellerDashboardPage />} />
-              <Route path="products" element={<SellerProductsPage />} />
-              <Route path="products/add" element={<SellerProductAddPage />} />
-              <Route path="products/edit/:id" element={<SellerProductEditPage />} />
-              <Route path="orders" element={<SellerOrdersPage />} />
-              <Route path="orders/:id" element={<SellerOrderDetailPage />} />
-              <Route path="analytics" element={<SellerAnalyticsPage />} />
-              <Route path="settings" element={<SellerSettingsPage />} />
+            
+            {/* Seller routes - yêu cầu role "seller" */}
+            <Route element={<RoleBasedRoute requiredRole="seller" />}>
+              <Route path="/seller" element={<SellerLayout />}>
+                <Route index element={<SellerDashboardPage />} />
+                <Route path="dashboard" element={<SellerDashboardPage />} />
+                <Route path="products" element={<SellerProductsPage />} />
+                <Route path="products/add" element={<SellerProductAddPage />} />
+                <Route path="products/edit/:id" element={<SellerProductEditPage />} />
+                <Route path="orders" element={<SellerOrdersPage />} />
+                <Route path="orders/:id" element={<SellerOrderDetailPage />} />
+                <Route path="analytics" element={<SellerAnalyticsPage />} />
+                <Route path="settings" element={<SellerSettingsPage />} />
+              </Route>
             </Route>
-          </Route>
-        </Routes>
-      </QueryClientProvider>
+          </Routes>
+        </QueryClientProvider>
+      </ApiProvider>
     </Auth0ProviderWithNavigate>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Product } from '../types';
 import ProductCard from '../components/common/ProductCard';
-import { useProductHooks } from '../hooks/useProduct';
+import { useProduct } from '../hooks/useProduct';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 interface PriceRange {
@@ -16,9 +16,9 @@ const ProductsPage: React.FC = () => {
     categories, 
     loading, 
     error, 
-    fetchCategories,
-    fetchProductsPaginated
-  } = useProductHooks();
+    getCategories,
+    getProductsPaginated
+  } = useProduct();
   
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,24 +48,24 @@ const ProductsPage: React.FC = () => {
   const loadInitialProducts = useCallback(async () => {
     try {
       const pageSize = 12;
-      const result = await fetchProductsPaginated(initialPage, pageSize);
+      const result = await getProductsPaginated(initialPage, pageSize);
       setCurrentProducts(result.products);
-      setIsLastPage(result.isLastPage);
+      setIsLastPage(result.pagination.isLast);
       setPage(initialPage);
       setInitialLoaded(true);
     } catch (err) {
       console.error("Error loading initial products:", err);
     }
-  }, [fetchProductsPaginated, initialPage]);
+  }, [getProductsPaginated, initialPage]);
 
   useEffect(() => {
     if (categories.length === 0) {
-      fetchCategories();
+      getCategories();
     }
     
     // Initial product loading with pagination
     loadInitialProducts();
-  }, [categories.length, fetchCategories, loadInitialProducts]);
+  }, [categories.length, getCategories, loadInitialProducts]);
 
   const loadMoreProducts = async () => {
     if (isLastPage || loadingMore) return;
@@ -83,10 +83,10 @@ const ProductsPage: React.FC = () => {
         return;
       }
       
-      const result = await fetchProductsPaginated(nextPage, pageSize);
+      const result = await getProductsPaginated(nextPage, pageSize);
       
       setCurrentProducts(prev => [...prev, ...result.products]);
-      setIsLastPage(result.isLastPage);
+      setIsLastPage(result.pagination.isLast);
       setPage(nextPage);
     } catch (err) {
       console.error("Error loading more products:", err);

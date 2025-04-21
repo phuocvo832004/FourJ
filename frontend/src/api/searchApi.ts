@@ -71,8 +71,8 @@ const searchApi = {
     const { page = 0, size = 20, ...restParams } = params;
     
     try {
-      // POST method with complex search parameters
-      const response = await apiClient.post('/api/search/products', {
+      // POST method with complex search parameters - Sửa lại đúng endpoint
+      const response = await apiClient.post('/search/products', {
         ...restParams,
         from: page * size,
         size: size,
@@ -105,7 +105,7 @@ const searchApi = {
       if (sortBy) params.sortBy = sortBy;
       if (categories && categories.length) params.categories = categories;
       
-      const response = await apiClient.get('/api/search/products', { params });
+      const response = await apiClient.get('/search/products', { params });
       return response.data;
     } catch (error) {
       console.error('Error in simple search:', error);
@@ -116,13 +116,18 @@ const searchApi = {
   // Lấy gợi ý tìm kiếm
   getSuggestions: async (prefix: string, size: number = 5): Promise<string[]> => {
     try {
-      const response = await apiClient.get('/api/search/suggestions', {
+      if (!prefix || prefix.length < 2) {
+        return [];
+      }
+      
+      const response = await apiClient.get('/search/suggestions', {
         params: { prefix, size }
       });
       return response.data;
     } catch (error) {
       console.error('Error getting search suggestions:', error);
-      return [];
+      // Ném lỗi để component gọi API có thể xử lý
+      throw error;
     }
   },
 
@@ -135,7 +140,7 @@ const searchApi = {
     size: number = 10
   ): Promise<SearchResult> => {
     try {
-      const response = await apiClient.get('/api/search/products/price-range', {
+      const response = await apiClient.get('/search/products/price-range', {
         params: {
           keyword,
           minPrice,
@@ -161,7 +166,7 @@ const searchApi = {
     sortDir: 'asc' | 'desc' = 'asc'
   ): Promise<SearchResult> => {
     try {
-      const response = await apiClient.get(`/api/search/products/category/${categoryId}`, {
+      const response = await apiClient.get(`/search/products/category/${categoryId}`, {
         params: {
           keyword,
           page,

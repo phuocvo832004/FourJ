@@ -70,7 +70,7 @@ export const useCart = () => {
 
       const response = await apiClient.post('/cart/items', {
         productId: parseInt(item.id, 10),
-        quantity: 1
+        quantity: item.quantity
       }, {
         headers: {
           'Authorization': `Bearer ${token}`

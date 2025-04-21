@@ -15,6 +15,7 @@ const SearchBar = ({ className = '', placeholder = 'Tìm kiếm sản phẩm...'
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const suggestionRef = useRef<HTMLDivElement>(null);
 
   // Xử lý click ra ngoài để đóng suggestion
@@ -36,20 +37,26 @@ const SearchBar = ({ className = '', placeholder = 'Tìm kiếm sản phẩm...'
     const loadSuggestions = async () => {
       if (searchQuery.length < 2) {
         setSuggestions([]);
+        setError(null);
         return;
       }
 
       setIsLoading(true);
+      setError(null);
+      
       try {
         const results = await searchApi.getSuggestions(searchQuery);
         setSuggestions(results);
       } catch (error) {
         console.error('Error fetching suggestions:', error);
+        setError('Không thể tải gợi ý tìm kiếm. Vui lòng thử lại sau.');
+        setSuggestions([]);
       } finally {
         setIsLoading(false);
       }
     };
 
+    // Debounce để tránh gọi API quá nhiều
     const timeoutId = setTimeout(() => {
       loadSuggestions();
     }, 300);
@@ -64,6 +71,7 @@ const SearchBar = ({ className = '', placeholder = 'Tìm kiếm sản phẩm...'
     if (searchQuery.trim()) {
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
       setShowSuggestions(false);
+      setError(null);
     }
   };
 
@@ -71,6 +79,7 @@ const SearchBar = ({ className = '', placeholder = 'Tìm kiếm sản phẩm...'
     setSearchQuery(suggestion);
     navigate(`/search?q=${encodeURIComponent(suggestion)}`);
     setShowSuggestions(false);
+    setError(null);
   };
 
   return (
@@ -78,7 +87,7 @@ const SearchBar = ({ className = '', placeholder = 'Tìm kiếm sản phẩm...'
       <form onSubmit={handleSearch} className="relative">
         <input
           type="text"
-          className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${error ? 'border-red-500 focus:ring-red-500' : 'focus:ring-blue-500'}`}
           placeholder={placeholder}
           value={searchQuery}
           onChange={(e) => {
@@ -92,9 +101,16 @@ const SearchBar = ({ className = '', placeholder = 'Tìm kiếm sản phẩm...'
         </div>
       </form>
 
+      {/* Error message */}
+      {error && (
+        <div className="absolute z-10 w-full mt-1 bg-red-50 text-red-600 border border-red-200 rounded-md p-2 text-sm">
+          {error}
+        </div>
+      )}
+
       {/* Suggestions dropdown */}
-      {showSuggestions && (searchQuery.length >= 2) && (
-        <div className="absolute z-10 w-full mt-1 bg-white rounded-md shadow-lg max-h-60 overflow-auto">
+      {showSuggestions && (searchQuery.length >= 2) && !error && (
+        <div className="absolute z-10 w-full mt-1 bg-white rounded-md shadow-lg max-h-60 overflow-auto border border-gray-200">
           {isLoading ? (
             <div className="px-4 py-2 text-sm text-gray-500">Đang tìm kiếm...</div>
           ) : suggestions.length > 0 ? (

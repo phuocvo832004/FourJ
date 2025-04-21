@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Seller, Product, Order } from '../../types';
+import DashboardCard from '../../components/ui/DashboardCard';
+import StatCard from '../../components/ui/StatCard';
 
 const SellerDashboardPage: React.FC = () => {
   const [seller, setSeller] = useState<Seller | null>(null);
@@ -93,6 +95,8 @@ const SellerDashboardPage: React.FC = () => {
             shippingAddress: 'Hà Nội, Việt Nam',
             paymentMethod: 'cod',
             sellerId: '1',
+            recipientName: 'Nguyễn Văn A',
+            recipientPhone: '0987654321',
           },
           {
             id: '1002',
@@ -113,6 +117,8 @@ const SellerDashboardPage: React.FC = () => {
             shippingAddress: 'TP Hồ Chí Minh, Việt Nam',
             paymentMethod: 'credit_card',
             sellerId: '1',
+            recipientName: 'Trần Thị B',
+            recipientPhone: '0912345678',
           },
         ]);
         
@@ -173,8 +179,42 @@ const SellerDashboardPage: React.FC = () => {
     });
   };
 
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'processing':
+        return 'bg-blue-100 text-blue-800';
+      case 'shipped':
+        return 'bg-purple-100 text-purple-800';
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'Chờ xác nhận';
+      case 'processing':
+        return 'Đang xử lý';
+      case 'shipped':
+        return 'Đang giao hàng';
+      case 'delivered':
+        return 'Đã giao hàng';
+      case 'cancelled':
+        return 'Đã hủy';
+      default:
+        return status;
+    }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="pb-8">
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6" role="alert">
           <p>{error}</p>
@@ -189,164 +229,198 @@ const SellerDashboardPage: React.FC = () => {
         >
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
             <div className="flex items-center mb-4 md:mb-0">
-              <div className="w-16 h-16 rounded-full overflow-hidden mr-4">
+              <div className="w-16 h-16 rounded-full overflow-hidden mr-4 border-2 border-blue-100">
                 <img src={seller.logo} alt={seller.name} className="w-full h-full object-cover" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">{seller.name}</h1>
-                <p className="text-gray-600">{seller.status === 'approved' ? 'Đã xác thực' : 'Chờ xác thực'}</p>
-              </div>
-            </div>
-            <div className="flex space-x-2">
-              <Link to="/seller/products/add">
-                <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                  Thêm sản phẩm
-                </button>
-              </Link>
-              <Link to="/seller/settings">
-                <button className="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300">
-                  Cài đặt
-                </button>
-              </Link>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-gray-500 text-sm font-medium mb-2">Tổng doanh thu</h3>
-              <p className="text-2xl font-bold">{formatCurrency(stats.totalSales)}</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-gray-500 text-sm font-medium mb-2">Đơn hàng chờ xử lý</h3>
-              <p className="text-2xl font-bold">{stats.pendingOrders}</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-gray-500 text-sm font-medium mb-2">Tổng sản phẩm</h3>
-              <p className="text-2xl font-bold">{stats.totalProducts}</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-gray-500 text-sm font-medium mb-2">Sản phẩm đang bán</h3>
-              <p className="text-2xl font-bold">{stats.activeProducts}</p>
-            </div>
-          </div>
-
-          {/* Recent Orders */}
-          <div className="bg-white rounded-lg shadow-md mb-8">
-            <div className="p-6 border-b">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Đơn hàng gần đây</h2>
-                <Link to="/seller/orders" className="text-blue-600 hover:text-blue-800">
-                  Xem tất cả
-                </Link>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Mã đơn hàng
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Ngày đặt
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Khách hàng
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tổng tiền
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Trạng thái
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Thao tác
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {recentOrders.map((order) => (
-                    <tr key={order.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-gray-900">#{order.id}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-500">{formatDate(order.createdAt)}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-500">{order.userId}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-gray-900">{formatCurrency(order.total)}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                          ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
-                          ${order.status === 'processing' ? 'bg-blue-100 text-blue-800' : ''}
-                          ${order.status === 'shipping' ? 'bg-purple-100 text-purple-800' : ''}
-                          ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : ''}
-                          ${order.status === 'cancelled' ? 'bg-red-100 text-red-800' : ''}
-                        `}>
-                          {order.status === 'pending' && 'Chờ xử lý'}
-                          {order.status === 'processing' && 'Đang xử lý'}
-                          {order.status === 'shipping' && 'Đang giao hàng'}
-                          {order.status === 'delivered' && 'Đã giao hàng'}
-                          {order.status === 'cancelled' && 'Đã hủy'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Link to={`/seller/orders/${order.id}`} className="text-blue-600 hover:text-blue-900">
-                          Chi tiết
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Top Products */}
-          <div className="bg-white rounded-lg shadow-md">
-            <div className="p-6 border-b">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Sản phẩm bán chạy</h2>
-                <Link to="/seller/products" className="text-blue-600 hover:text-blue-800">
-                  Quản lý sản phẩm
-                </Link>
-              </div>
-            </div>
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {topProducts.map((product) => (
-                <div key={product.id} className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 h-16 w-16 rounded-md overflow-hidden">
-                      <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                <h1 className="text-2xl font-bold text-gray-900">{seller.name}</h1>
+                <div className="flex items-center">
+                  <span className={`text-sm px-2 py-1 rounded-full ${seller.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                    {seller.status === 'approved' ? 'Đã xác thực' : 'Chờ xác thực'}
+                  </span>
+                  {seller.rating && (
+                    <div className="flex items-center ml-2">
+                      <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                      </svg>
+                      <span className="ml-1 text-sm text-gray-600">{seller.rating.toFixed(1)}</span>
                     </div>
-                    <div className="ml-4">
-                      <h3 className="text-sm font-medium text-gray-900">{product.name}</h3>
-                      <p className="mt-1 text-sm text-gray-500">{product.category}</p>
-                      <p className="mt-1 text-sm font-semibold">{formatCurrency(product.price)}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex justify-end">
-                    <Link 
-                      to={`/seller/products/edit/${product.id}`}
-                      className="text-sm text-blue-600 hover:text-blue-800 mr-4"
-                    >
-                      Chỉnh sửa
-                    </Link>
-                    <Link 
-                      to={`/products/${product.id}`}
-                      className="text-sm text-gray-600 hover:text-gray-800"
-                    >
-                      Xem
-                    </Link>
-                  </div>
+                  )}
                 </div>
-              ))}
+              </div>
             </div>
+            <div className="flex flex-wrap gap-2">
+              <Link to="/seller/products/add" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                Thêm sản phẩm
+              </Link>
+              <Link to="/seller/settings" className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                Cài đặt cửa hàng
+              </Link>
+            </div>
+          </div>
+
+          {/* Stats cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <StatCard 
+              title="Doanh số"
+              value={formatCurrency(stats.totalSales)}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              }
+              color="blue"
+              change={{ value: '5%', isPositive: true }}
+            />
+            <StatCard 
+              title="Đơn hàng chờ xử lý"
+              value={stats.pendingOrders}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                </svg>
+              }
+              color="yellow"
+            />
+            <StatCard 
+              title="Tổng sản phẩm"
+              value={stats.totalProducts}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                </svg>
+              }
+              color="purple"
+            />
+            <StatCard 
+              title="Sản phẩm đang bán"
+              value={stats.activeProducts}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"></path>
+                </svg>
+              }
+              color="green"
+              change={{ value: '+2', isPositive: true }}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Recent Orders */}
+            <DashboardCard
+              title="Đơn hàng gần đây"
+              className="lg:col-span-2"
+              icon={
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                </svg>
+              }
+              footer={
+                <Link to="/seller/orders" className="text-blue-600 hover:text-blue-800 text-sm font-medium inline-flex items-center transition duration-150">
+                  Xem tất cả đơn hàng
+                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"></path>
+                  </svg>
+                </Link>
+              }
+            >
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã đơn</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày đặt</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng tiền</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                      <th scope="col" className="relative px-6 py-3">
+                        <span className="sr-only">Xem</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {recentOrders.length > 0 ? (
+                      recentOrders.map((order) => (
+                        <tr key={order.id} className="hover:bg-gray-50 transition duration-150">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{order.id}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(order.createdAt)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(order.total)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(order.status)}`}>
+                              {getStatusText(order.status)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <Link to={`/seller/orders/${order.id}`} className="text-blue-600 hover:text-blue-900 transition duration-150">
+                              Chi tiết
+                            </Link>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
+                          Không có đơn hàng nào gần đây
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </DashboardCard>
+
+            {/* Top Products */}
+            <DashboardCard
+              title="Sản phẩm bán chạy"
+              icon={
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+              }
+              footer={
+                <Link to="/seller/products" className="text-blue-600 hover:text-blue-800 text-sm font-medium inline-flex items-center transition duration-150">
+                  Xem tất cả sản phẩm
+                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"></path>
+                  </svg>
+                </Link>
+              }
+            >
+              {topProducts.length > 0 ? (
+                <ul className="divide-y divide-gray-200">
+                  {topProducts.map((product) => (
+                    <li key={product.id} className="py-3">
+                      <div className="flex items-center space-x-4">
+                        <div className="flex-shrink-0 h-12 w-12 rounded bg-gray-100 overflow-hidden">
+                          <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                          <p className="text-sm text-gray-500 truncate">{formatCurrency(product.price)}</p>
+                        </div>
+                        <div>
+                          <Link to={`/seller/products/edit/${product.id}`} className="inline-flex items-center p-1.5 border border-gray-300 rounded-full text-gray-700 bg-white hover:bg-gray-50 transition duration-150">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                            </svg>
+                          </Link>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-500">Không có sản phẩm nào</p>
+                </div>
+              )}
+            </DashboardCard>
           </div>
         </motion.div>
       )}
