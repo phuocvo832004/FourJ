@@ -25,6 +25,9 @@ public class OrderItem {
     private String productImage;
 
     @Column(nullable = false)
+    private BigDecimal subtotal;
+
+    @Column(nullable = false)
     private BigDecimal price;
 
     @Column(nullable = false)

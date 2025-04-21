@@ -15,13 +15,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.payos.PayOS;
-import vn.payos.type.CheckoutResponseData;
-import vn.payos.type.ItemData;
-import vn.payos.type.PaymentData;
+import vn.payos.type.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,35 +36,33 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderDto createOrder(String userId, String token, CreateOrderRequest request) {
         try {
-            // Lấy giỏ hàng của người dùng
-            CartDto cart = cartClient.getCart(token).block();
-            if (cart == null || cart.getItems() == null || cart.getItems().isEmpty()) {
-                throw new EmptyCartException("Giỏ hàng trống, không thể tạo đơn hàng");
+            if (request.getItems() == null || request.getItems().isEmpty()) {
+                throw new EmptyCartException("Danh sách sản phẩm không được để trống");
             }
 
-            // Kiểm tra giá và tồn kho sản phẩm
-            for (CartItemDto item : cart.getItems()) {
+            for (OrderItemDto item : request.getItems()) {
                 ProductDto productInfo = productClient.getProductById(String.valueOf(item.getProductId())).block();
                 if (productInfo == null) {
                     throw new ProductNotFoundException("Không tìm thấy sản phẩm: " + item.getProductId());
                 }
-                if (!productInfo.getPrice().equals(BigDecimal.valueOf(item.getPrice()))) {
+                if (!productInfo.getPrice().equals(item.getPrice())) {
                     throw new PriceDiscrepancyException("Giá sản phẩm " + item.getProductName() + " đã thay đổi");
                 }
-                if (productInfo.getStock() < item.getQuantity()) {
+
+                if (productInfo.getStockQuantity() < item.getQuantity()) {
                     throw new InsufficientStockException("Sản phẩm " + item.getProductName() + " không đủ số lượng");
                 }
             }
 
-            // Chuyển đổi CartItemDto sang OrderItem
-            List<OrderItem> orderItems = cart.getItems().stream()
+            List<OrderItem> orderItems = request.getItems().stream()
                     .map(item -> OrderItem.builder()
                             .productId(item.getProductId())
                             .productName(item.getProductName())
-                            .productImage(item.getProductImage())
-                            .price(BigDecimal.valueOf(item.getPrice()))
+                            .productImage(null) // nếu không có trong request, bạn để null hoặc fetch từ ProductService
+                            .price(item.getPrice())
                             .quantity(item.getQuantity())
-                            .order(null)
+                            .subtotal(item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                            .order(null) // sẽ được set sau khi tạo Order
                             .build())
                     .collect(Collectors.toList());
 
@@ -80,6 +76,7 @@ public class OrderServiceImpl implements OrderService {
             order.setShippingAddress(new ShippingAddress(request.getShippingAddress()));
             order.setPaymentInfo(new PaymentInfo(null, PaymentMethod.valueOf(request.getPaymentMethod()), PaymentStatus.PENDING, null, null, null, null, null));
             order.setNotes(request.getNotes());
+
 
             // Gán order cho các OrderItem
             orderItems.forEach(item -> item.setOrder(order));
@@ -120,8 +117,18 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private String generateOrderNumber() {
-        return "ORD-" + System.currentTimeMillis();
+        String orderNumber;
+        do {
+            orderNumber = generateRandom6Digits();
+        } while (orderRepository.findByOrderNumber(orderNumber).isPresent());
+        return orderNumber;
     }
+
+    private String generateRandom6Digits() {
+        int number = new Random().nextInt(900000) + 100000; // từ 100000 đến 999999
+        return String.valueOf(number);
+    }
+
 
     private BigDecimal calculateTotalAmount(List<OrderItem> items) {
         return items.stream()
@@ -139,12 +146,14 @@ public class OrderServiceImpl implements OrderService {
                 .collect(Collectors.toList());
 
         return PaymentData.builder()
-                .orderCode(order.getPaymentInfo().getPayOsOrderCode() != null ? order.getPaymentInfo().getPayOsOrderCode() : System.currentTimeMillis())
-                .amount(order.getTotalAmount().intValue())
-                .description("Thanh toán đơn hàng #" + order.getOrderNumber())
+                .orderCode(Long.parseLong(order.getOrderNumber()))
+//                .amount(order.getTotalAmount().intValue())
+                .amount(10000)
+                .description("Đơn hàng #" + order.getOrderNumber())
                 .items(items)
-                .cancelUrl("https://your-site.com/api/orders/cancel?orderId=" + order.getId())
-                .returnUrl("https://your-site.com/api/orders/success?orderId=" + order.getId())
+                .cancelUrl("http://localhost:5173/checkout/orders/cancel?orderId=" + order.getId())
+                .returnUrl("http://localhost:5173/checkout/orders/success?orderId=" + order.getId())
+                .expiredAt((Long) (System.currentTimeMillis() / 1000) + 5 * 60)
                 .build();
     }
 
@@ -195,6 +204,13 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    public Order getOrderByOrderNumber(String orderNumber) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new OrderNotFoundException("Không tìm thấy đơn hàng với số: " + orderNumber));
+        return order;
+    }
+
+    @Override
     public OrderDto getOrderByNumber(String orderNumber) {
         Order order = orderRepository.findByOrderNumber(orderNumber)
                 .orElseThrow(() -> new OrderNotFoundException("Không tìm thấy đơn hàng với số: " + orderNumber));
@@ -235,5 +251,11 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderDto createOrderFromEvent(String userId, CreateOrderRequest request) {
         return null;
+    }
+
+    @Override
+    public void updateOrder(WebhookData data) {
+        Order order = getOrderByOrderNumber(data.getOrderCode().toString());
+        //order.getPaymentInfo().setPaymentStatus(data.get);
     }
 }
