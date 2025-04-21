@@ -6,6 +6,7 @@ import com.fourj.orderservice.dto.UpdateOrderStatusRequest;
 import com.fourj.orderservice.model.OrderStatus;
 import com.fourj.orderservice.service.OrderService;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
@@ -39,6 +41,7 @@ public class OrderController {
         String token = jwt.getTokenValue();
 
         OrderDto order = orderService.createOrder(userId, token, request);
+        log.info(order.getPaymentInfo().getPaymentLinkId());
         return new ResponseEntity<>(order, HttpStatus.CREATED);
     }
 

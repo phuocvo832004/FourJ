@@ -19,7 +19,7 @@ public class ProductDto {
     private String category;
     private BigDecimal price;
     private String imageUrl;
-    private int stock;
+    private int stockQuantity;
     private boolean active;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

@@ -1,14 +1,15 @@
 package com.fourj.orderservice.dto;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
-@Builder
-@Getter
-@Setter
 @NoArgsConstructor
-@AllArgsConstructor
 public class ShippingAddressDto {
-    private Long id;
-    private String fullAddress;
+    private String address;
+
+    public ShippingAddressDto(String address) {
+        this.address = address;
+    }
 }

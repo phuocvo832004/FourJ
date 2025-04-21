@@ -15,7 +15,7 @@ public class ProductClient {
 
     @Autowired
     public ProductClient(WebClient.Builder webClientBuilder) {
-        this.webClient = webClientBuilder.baseUrl("http://product-service:8083").build();
+        this.webClient = webClientBuilder.baseUrl("http://product-service:8084").build();
     }
 
     public Mono<ProductDto> getProductById(String productId) {
