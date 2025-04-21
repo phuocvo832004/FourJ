@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-hooks';
+import apiClient from '../api/apiClient';
 
 const PaymentResultPage: React.FC = () => {
   const [status, setStatus] = useState<'success' | 'failed' | 'loading' | 'error'>('loading');
@@ -16,12 +17,11 @@ const PaymentResultPage: React.FC = () => {
     const checkPaymentStatus = async () => {
       try {
         const params = new URLSearchParams(location.search);
-        const paymentId = params.get('paymentId');
-        const orderId = params.get('orderId');
+        const orderCode = params.get('orderCode');
         
-        if (!paymentId || !orderId) {
+        if (!orderCode) {
           setStatus('error');
-          setErrorMessage('Không tìm thấy thông tin thanh toán');
+          setErrorMessage('Không tìm thấy thông tin đơn hàng');
           return;
         }
         
@@ -32,26 +32,24 @@ const PaymentResultPage: React.FC = () => {
           return;
         }
         
-        const response = await fetch(`/api/payment/check?paymentId=${paymentId}&orderId=${orderId}`, {
+        // Gọi API từ order-service để kiểm tra trạng thái thanh toán
+        const response = await apiClient.get(`/orders/number/${orderCode}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
         
-        if (!response.ok) {
-          setStatus('error');
-          setErrorMessage('Không thể kiểm tra trạng thái thanh toán');
-          return;
-        }
+        const orderData = response.data;
         
-        const data = await response.json();
+        setOrderNumber(orderData.orderNumber || orderCode);
+        setAmount(orderData.totalAmount || 0);
         
-        setOrderNumber(data.orderCode || orderId);
-        setAmount(data.amount || 0);
+        // Kiểm tra trạng thái thanh toán từ orderData
+        const paymentStatus = orderData.paymentInfo?.status;
         
-        if (data.status === 'PAID' || data.status === 'COMPLETED' || data.status === 'success') {
+        if (paymentStatus === 'PAID' || paymentStatus === 'COMPLETED' || paymentStatus === 'SUCCESS') {
           setStatus('success');
-        } else if (data.status === 'CANCELLED' || data.status === 'FAILED' || data.status === 'EXPIRED' || data.status === 'failed') {
+        } else if (paymentStatus === 'CANCELLED' || paymentStatus === 'FAILED' || paymentStatus === 'EXPIRED') {
           setStatus('failed');
         } else {
           // PENDING, PROCESSING

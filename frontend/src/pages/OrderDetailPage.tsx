@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-hooks';
 import { Order } from '../types';
 import ErrorNotification from '../components/ErrorNotification';
+import apiClient from '../api/apiClient';
 
 const OrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -12,82 +13,61 @@ const OrderDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchOrder = async () => {
-      if (!isAuthenticated || !id) return;
-      
-      setIsLoadingOrder(true);
-      setError(null);
-      
-      try {
-        const token = await getToken();
-        if (!token) {
-          throw new Error('Không có token xác thực');
-        }
-        
-        const response = await fetch(`/api/orders/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (!response.ok) {
-          if (response.status === 401) {
-            throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-          }
-          throw new Error('Không thể tải thông tin đơn hàng');
-        }
-        
-        const data = await response.json();
-        setOrder(data);
-      } catch (error) {
-        console.error('Error fetching order:', error);
-        setError(error instanceof Error ? error.message : 'Không thể tải thông tin đơn hàng');
-      } finally {
-        setIsLoadingOrder(false);
-      }
-    };
-
-    fetchOrder();
-  }, [isAuthenticated, id, getToken]);
-
-  const handleCancelOrder = async () => {
-    if (!order || !id) return;
-    
-    if (!window.confirm('Bạn có chắc chắn muốn hủy đơn hàng này?')) {
-      return;
-    }
-    
-    setIsCancelling(true);
-    setError(null);
-    
+  const fetchOrder = useCallback(async () => {
     try {
+      setIsLoadingOrder(true);
       const token = await getToken();
+      
       if (!token) {
-        throw new Error('Không có token xác thực');
+        setError('Bạn cần đăng nhập để xem chi tiết đơn hàng');
+        return;
       }
       
-      const response = await fetch(`/api/orders/${id}/cancel`, {
-        method: 'POST',
+      const response = await apiClient.get(`/orders/${id}`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${token}`
         }
       });
       
-      if (!response.ok) {
-        throw new Error('Không thể hủy đơn hàng');
+      setOrder(response.data);
+    } catch (error) {
+      console.error('Error fetching order:', error);
+      setError('Không thể tải thông tin đơn hàng. Vui lòng thử lại sau.');
+    } finally {
+      setIsLoadingOrder(false);
+    }
+  }, [id, getToken]);
+
+  useEffect(() => {
+    fetchOrder();
+  }, [fetchOrder]);
+
+  const handleCancelOrder = async () => {
+    try {
+      setIsCancelling(true);
+      
+      const token = await getToken();
+      if (!token) {
+        setError('Bạn cần đăng nhập để hủy đơn hàng');
+        return;
       }
       
-      // Cập nhật trạng thái đơn hàng
-      setOrder(prev => prev ? { ...prev, status: 'cancelled' } : null);
+      const response = await apiClient.delete(`/orders/${id}/cancel`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       
-      // Hiển thị thông báo thành công
-      alert('Đơn hàng đã được hủy thành công');
+      setOrder(response.data);
+      setSuccessMessage('Đơn hàng đã được hủy thành công');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       console.error('Error cancelling order:', error);
-      setError(error instanceof Error ? error.message : 'Không thể hủy đơn hàng');
+      setError('Không thể hủy đơn hàng. Vui lòng thử lại sau.');
     } finally {
       setIsCancelling(false);
     }
@@ -105,18 +85,13 @@ const OrderDetailPage: React.FC = () => {
         throw new Error('Không có token xác thực');
       }
       
-      const response = await fetch(`/api/orders/${id}/payment`, {
-        method: 'POST',
+      const response = await apiClient.post(`/orders/${id}/payment`, {}, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
-      if (!response.ok) {
-        throw new Error('Không thể tạo phiên thanh toán');
-      }
-      
-      const data = await response.json();
+      const data = response.data;
       
       if (data.paymentUrl) {
         window.location.href = data.paymentUrl;
@@ -307,6 +282,12 @@ const OrderDetailPage: React.FC = () => {
       </div>
 
       {error && <ErrorNotification message={error} onClose={() => setError(null)} />}
+
+      {successMessage && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
+          {successMessage}
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="p-6">

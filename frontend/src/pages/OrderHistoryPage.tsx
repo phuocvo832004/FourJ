@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/auth-hooks';
 import ErrorNotification from '../components/ErrorNotification';
+import apiClient from '../api/apiClient';
 
 interface OrderItem {
   id: string;
@@ -32,6 +33,7 @@ const OrderHistoryPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isInitialized, setIsInitialized] = useState(false);
+  const navigate = useNavigate();
 
   const fetchOrders = useCallback(async () => {
     if (!isAuthenticated || !user || isInitialized) return;
@@ -45,22 +47,18 @@ const OrderHistoryPage: React.FC = () => {
         throw new Error('Không có token xác thực');
       }
       
-      const response = await fetch(`/api/orders/my-orders?page=${currentPage}&size=5`, {
+      const response = await apiClient.get(`/orders/my-orders`, {
+        params: {
+          page: currentPage,
+          size: 5
+        },
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-        }
-        throw new Error('Không thể tải lịch sử đơn hàng');
-      }
-      
-      const data = await response.json();
-      setOrders(data.content || []);
-      setTotalPages(data.totalPages || 1);
+      setOrders(response.data.content || []);
+      setTotalPages(response.data.totalPages || 1);
       setIsInitialized(true);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -82,28 +80,33 @@ const OrderHistoryPage: React.FC = () => {
     fetchOrders();
   }, [fetchOrders]);
 
-  const handleBuyAgain = async (orderId: string) => {
+  const handleReorder = async (orderId: string) => {
     if (!isAuthenticated) return;
+    
+    setIsLoadingOrders(true);
+    setError('');
     
     try {
       const token = await getToken();
-      const response = await fetch(`/api/orders/${orderId}/reorder`, {
-        method: 'POST',
+      if (!token) {
+        throw new Error('Không có token xác thực');
+      }
+      
+      const response = await apiClient.post(`/orders/${orderId}/reorder`, {}, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${token}`
         }
       });
       
-      if (!response.ok) {
-        throw new Error('Không thể tạo đơn hàng mới');
-      }
+      console.log('Đã tạo lại đơn hàng thành công:', response.data);
       
-      // Chuyển hướng đến trang giỏ hàng sau khi thêm thành công
-      window.location.href = '/cart';
+      // Chuyển hướng đến trang giỏ hàng
+      navigate('/cart');
     } catch (error) {
       console.error('Error reordering:', error);
       setError('Không thể tạo lại đơn hàng. Vui lòng thử lại sau.');
+    } finally {
+      setIsLoadingOrders(false);
     }
   };
 
@@ -279,7 +282,7 @@ const OrderHistoryPage: React.FC = () => {
                 
                 {order.status === 'DELIVERED' && (
                   <button 
-                    onClick={() => handleBuyAgain(order.id)}
+                    onClick={() => handleReorder(order.id)}
                     className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
                   >
                     Mua lại

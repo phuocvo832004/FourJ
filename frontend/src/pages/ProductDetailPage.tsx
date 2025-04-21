@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import product1Image from '../assets/product-1.jpg';
 import { useCart } from '../hooks/useCart';
+import apiClient from '../api/apiClient';
 
 interface ApiProduct {
   id: number;
@@ -33,8 +34,8 @@ const ProductDetailPage: React.FC = () => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const { addItem } = useCart();
   const [product, setProduct] = useState<ApiProduct | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoadingProduct, setIsLoadingProduct] = useState(true);
+  const [productError, setProductError] = useState<string | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewData, setReviewData] = useState({
@@ -44,73 +45,39 @@ const ProductDetailPage: React.FC = () => {
   });
 
   useEffect(() => {
-    const fetchProductDetails = async () => {
+    const fetchProduct = async () => {
+      if (!id) return;
+      
+      setIsLoadingProduct(true);
+      setProductError(null);
+      
       try {
-        setLoading(true);
-        const response = await fetch(`/api/products/${id}`);
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch product details');
-        }
-        
-        const data = await response.json();
-        setProduct(data);
-        
-        // Also fetch reviews
-        fetchProductReviews();
-      } catch (err) {
-        console.error('Error fetching product details:', err);
-        setError('Could not load product details. Please try again later.');
-        
-        // Use mock data for development
-        setProduct({
-          id: Number(id),
-          name: 'Premium Product',
-          price: 199.99,
-          description: 'This is a detailed description of the product. It includes all the important features and specifications that customers need to know.',
-          category: {
-            id: 1,
-            name: 'Electronics'
-          },
-          stock: 10,
-          isActive: true
-        });
-        
-        setReviews([
-          {
-            id: 1,
-            userName: 'Nguyen Van A',
-            rating: 5,
-            comment: 'Sản phẩm rất tốt, đúng như mô tả!',
-            createdDate: '2023-06-15'
-          },
-          {
-            id: 2,
-            userName: 'Tran Thi B',
-            rating: 4,
-            comment: 'Chất lượng tốt, giao hàng nhanh.',
-            createdDate: '2023-06-10'
-          }
-        ]);
+        const response = await apiClient.get(`/products/${id}`);
+        setProduct(response.data);
+      } catch (error) {
+        console.error('Error fetching product:', error);
+        setProductError('Không thể tải thông tin sản phẩm. Vui lòng thử lại sau.');
       } finally {
-        setLoading(false);
+        setIsLoadingProduct(false);
       }
     };
-
-    const fetchProductReviews = async () => {
+    
+    fetchProduct();
+  }, [id]);
+  
+  useEffect(() => {
+    const fetchReviews = async () => {
+      if (!id) return;
+      
       try {
-        const response = await fetch(`/api/products/${id}/reviews`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          setReviews(data);
-        }
-      } catch (err) {
-        console.error('Error fetching product reviews:', err);
+        const response = await apiClient.get(`/products/${id}/reviews`);
+        setReviews(response.data);
+      } catch (error) {
+        console.error('Error fetching reviews:', error);
       }
     };
-
-    fetchProductDetails();
+    
+    fetchReviews();
   }, [id]);
 
   const handleAddToCart = () => {
@@ -136,26 +103,16 @@ const ProductDetailPage: React.FC = () => {
     }
     
     try {
-      const response = await fetch(`/api/products/${id}/reviews`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userName: reviewData.userName,
-          rating: reviewData.rating,
-          comment: reviewData.comment
-        }),
+      const response = await apiClient.post(`/products/${id}/reviews`, {
+        userName: reviewData.userName,
+        rating: reviewData.rating,
+        comment: reviewData.comment
       });
       
-      if (response.ok) {
-        const newReview = await response.json();
-        setReviews(prev => [...prev, newReview]);
-        setReviewData({ rating: 5, comment: '', userName: '' });
-        setShowReviewForm(false);
-      } else {
-        alert('Không thể gửi đánh giá. Vui lòng thử lại sau.');
-      }
+      // Đã nhận được response
+      setReviews(prev => [...prev, response.data]);
+      setReviewData({ rating: 5, comment: '', userName: '' });
+      setShowReviewForm(false);
     } catch (err) {
       console.error('Error submitting review:', err);
       // For development, simulate a successful review submission
@@ -173,7 +130,7 @@ const ProductDetailPage: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (isLoadingProduct) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="flex justify-center items-center min-h-[300px]">
@@ -183,10 +140,10 @@ const ProductDetailPage: React.FC = () => {
     );
   }
 
-  if (error || !product) {
+  if (productError || !product) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-12 text-center text-red-500">
-        {error || 'Không tìm thấy sản phẩm'}
+        {productError || 'Không tìm thấy sản phẩm'}
         <div className="mt-4">
           <button 
             onClick={() => navigate('/products')}

@@ -1,8 +1,12 @@
 import axios from 'axios';
 
+// Lấy URL API từ biến môi trường
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost';
+const API_VERSION = import.meta.env.VITE_API_VERSION || '/api';
+
 // Create base axios instance
 const apiClient = axios.create({
-  baseURL: 'http://localhost:8087',
+  baseURL: `${API_URL}${API_VERSION}`,
   headers: {
     'Content-Type': 'application/json',
   },

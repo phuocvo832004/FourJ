@@ -19,30 +19,40 @@ import vn.payos.type.WebhookData;
 public class PayosWebhookController {
 
     private final PayOS payOS; // Được khởi tạo ở cấu hình
-    private OrderService orderService;
+    private final OrderService orderService;
 
     @PostMapping("/webhook")
     public ResponseEntity<String> handleWebhook(@RequestBody Webhook webhookBody) {
-        log.info("webhook body: {}", webhookBody);
+        log.info("Nhận webhook từ PayOS: {}", webhookBody);
         try {
-            // ✅ Xác thực payload từ PayOS
-            WebhookData data = payOS.verifyPaymentWebhookData(webhookBody);
-            log.info("webhook data: {}", toString(data));
-//            orderService.updateOrder(data);
-            // ✅ Lấy thông tin đơn hàng
-//            Long orderCode = data.getOrderCode();
-//            String status = data.getStatus(); // PAID, CANCELLED, etc.
+            // Bổ sung try-catch chi tiết cho từng bước
+            WebhookData data;
+            try {
+                data = payOS.verifyPaymentWebhookData(webhookBody);
+            } catch (Exception e) {
+                log.error("❌ Lỗi khi xác thực webhook với PayOS: {}", e.getMessage(), e);
+                // Vẫn trả về 200 để PayOS không tiếp tục gửi lại
+                return ResponseEntity.ok("Webhook signature verification failed");
+            }
 
+            log.info("Webhook data: {}", data);
 
-            // 📝 Gọi Order Service để cập nhật trạng thái đơn hàng
-            // orderService.updateOrderStatus(orderCode, status); // Tùy bạn triển khai
+            try {
+                orderService.updateOrder(data);
+            } catch (Exception e) {
+                log.error("❌ Lỗi khi cập nhật đơn hàng từ webhook: {}", e.getMessage(), e);
+                // Vẫn trả về 200 để PayOS không tiếp tục gửi lại
+                return ResponseEntity.ok("Order update failed but webhook received");
+            }
 
-            return ResponseEntity.ok("Webhook received");
+            return ResponseEntity.ok("Webhook processed successfully");
         } catch (Exception e) {
-            System.out.println("❌ Webhook không hợp lệ: " + e.getMessage());
-            return ResponseEntity.badRequest().body("Invalid webhook");
+            log.error("❌ Lỗi tổng thể khi xử lý webhook: {}", e.getMessage(), e);
+            // Trả về 200 để tránh PayOS gửi lại liên tục
+            return ResponseEntity.ok("Webhook received with errors");
         }
     }
+
     public String toString(WebhookData webhookData) {
         return "WebhookData(" + "orderCode=" + webhookData.getOrderCode() + ", amount=" + webhookData.getAmount() + ", description=" + webhookData.getDescription() + ", accountNumber=" + webhookData.getAccountNumber() + ", reference=" + webhookData.getReference() + ", transactionDateTime=" + webhookData.getTransactionDateTime() + ", currency=" + webhookData.getCurrency() + ", paymentLinkId=" + webhookData.getPaymentLinkId() + ", code=" + webhookData.getCode() + ", desc=" + webhookData.getDesc() + ", counterAccountBankId=" + webhookData.getCounterAccountBankId() + ", counterAccountBankName=" + webhookData.getCounterAccountBankName() + ", counterAccountName=" + webhookData.getCounterAccountName() + ", counterAccountNumber=" + webhookData.getCounterAccountNumber() + ", virtualAccountName=" + webhookData.getVirtualAccountName() + ", virtualAccountNumber=" + webhookData.getVirtualAccountNumber() + ")";
     }

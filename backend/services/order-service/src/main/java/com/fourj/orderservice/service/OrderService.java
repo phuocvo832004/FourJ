@@ -20,7 +20,7 @@ public interface OrderService {
     Page<OrderDto> getOrdersByUserId(String userId, Pageable pageable);
     List<OrderDto> getOrdersByStatus(OrderStatus status);
     OrderDto updateOrderStatus(Long id, UpdateOrderStatusRequest request);
-    void cancelOrder(Long id);
+    OrderDto cancelOrder(Long id);
     OrderDto createOrderFromEvent(String userId, CreateOrderRequest request);
     void updateOrder(WebhookData data);
 }

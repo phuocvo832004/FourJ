@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from './index';
 import { addItem, removeItem, updateQuantity, clearCart, toggleCart, setCartItems } from '../store/cartSlice';
 import { CartItem } from '../types';
 import { useAuth } from '../auth/auth-hooks';
+import apiClient from '../api/apiClient';
 
 export interface CartDto {
   id?: string;
@@ -42,17 +43,13 @@ export const useCart = () => {
       const token = await getToken();
       if (!token) return null;
 
-      const response = await fetch('/api/cart', {
+      const response = await apiClient.get('/cart', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch cart');
-      }
-      
-      const cartData = await response.json();
+      const cartData = response.data;
       // Cập nhật state Redux từ API
       dispatch(setCartItems(cartData.items || []));
       return cartData;
@@ -71,23 +68,16 @@ export const useCart = () => {
         return;
       }
 
-      const response = await fetch('/api/cart/items', {
-        method: 'POST',
+      const response = await apiClient.post('/cart/items', {
+        productId: parseInt(item.id, 10),
+        quantity: 1
+      }, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          productId: parseInt(item.id, 10),
-          quantity: 1
-        })
+        }
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to add item to cart');
-      }
-      
-      const updatedCart = await response.json();
+      const updatedCart = response.data;
       // Cập nhật state Redux từ API response
       dispatch(setCartItems(updatedCart.items || []));
       return updatedCart;
@@ -107,18 +97,13 @@ export const useCart = () => {
         return;
       }
 
-      const response = await fetch(`/api/cart/items/${id}`, {
-        method: 'DELETE',
+      const response = await apiClient.delete(`/cart/items/${id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to remove item from cart');
-      }
-      
-      const updatedCart = await response.json();
+      const updatedCart = response.data;
       // Cập nhật state Redux từ API response
       dispatch(setCartItems(updatedCart.items || []));
       return updatedCart;
@@ -138,20 +123,13 @@ export const useCart = () => {
         return;
       }
 
-      const response = await fetch(`/api/cart/items/${id}`, {
-        method: 'PUT',
+      const response = await apiClient.put(`/cart/items/${id}`, { quantity }, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ quantity })
+        }
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to update item quantity');
-      }
-      
-      const updatedCart = await response.json();
+      const updatedCart = response.data;
       // Cập nhật state Redux từ API response
       dispatch(setCartItems(updatedCart.items || []));
       return updatedCart;
@@ -171,16 +149,11 @@ export const useCart = () => {
         return;
       }
 
-      const response = await fetch('/api/cart', {
-        method: 'DELETE',
+      await apiClient.delete('/cart', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to clear cart');
-      }
       
       // Xóa items trong state Redux
       dispatch(clearCart());
@@ -200,18 +173,11 @@ export const useCart = () => {
       const token = await getToken();
       if (!token) return;
 
-      const response = await fetch('/api/cart/restore', {
-        method: 'POST',
+      await apiClient.post('/cart/restore', cartData, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(cartData)
+        }
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to restore cart');
-      }
 
       // Sau khi khôi phục, cập nhật lại giỏ hàng
       await fetchCart();

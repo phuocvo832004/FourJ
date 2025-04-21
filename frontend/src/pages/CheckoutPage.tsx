@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/auth-hooks';
 import { useCart } from '../hooks/useCart';
 import ErrorNotification from '../components/ErrorNotification';
+import apiClient from '../api/apiClient';
+import axios from 'axios';
 
 // Danh sách phương thức thanh toán phù hợp với backend
 const PAYMENT_METHODS = [
@@ -179,55 +181,24 @@ const CheckoutPage: React.FC = () => {
         return;
       }
       
-      const response = await fetch('/api/orders', {
-        method: 'POST',
+      const response = await apiClient.post('/orders', {
+        shippingAddress: formatFullAddress(),
+        recipientName: shippingAddress.fullName,
+        recipientPhone: shippingAddress.phone,
+        paymentMethod: paymentMethod,
+        notes: notes
+      }, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          shippingAddress: formatFullAddress(),
-          recipientName: shippingAddress.fullName,
-          recipientPhone: shippingAddress.phone,
-          paymentMethod: paymentMethod,
-          notes: notes
-        })
+        }
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Đã xảy ra lỗi khi tạo đơn hàng');
-      }
+      const orderData = response.data;
       
-      const orderData = await response.json();
-      
-      // Nếu thanh toán trực tuyến, chuyển hướng đến trang thanh toán
-      if (paymentMethod === 'ONLINE_PAYMENT') {
-        // Gọi API để tạo phiên thanh toán
-        const paymentResponse = await fetch(`/api/orders/${orderData.id}/payment`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (!paymentResponse.ok) {
-          // Nếu không tạo được phiên thanh toán, vẫn cho phép xem đơn hàng
-          setSuccessMessage('Đơn hàng đã được tạo, nhưng không thể khởi tạo thanh toán trực tuyến.');
-          setTimeout(() => {
-            navigate(`/order/${orderData.id}`);
-          }, 1500);
-          return;
-        }
-        
-        const paymentData = await paymentResponse.json();
-        
-        // Chuyển hướng đến trang thanh toán
-        if (paymentData.paymentUrl) {
-          window.location.href = paymentData.paymentUrl;
-          return;
-        }
+      // Nếu thanh toán trực tuyến, chuyển hướng đến trang thanh toán từ link được order-service trả về
+      if (paymentMethod === 'ONLINE_PAYMENT' && orderData.paymentInfo && orderData.paymentInfo.paymentUrl) {
+        window.location.href = orderData.paymentInfo.paymentUrl;
+        return;
       }
       
       // Nếu không phải thanh toán trực tuyến hoặc không có URL thanh toán
@@ -239,7 +210,13 @@ const CheckoutPage: React.FC = () => {
       }, 1000);
     } catch (error: unknown) {
       // Xử lý các loại lỗi từ backend
-      const errorMessage = error instanceof Error ? error.message : 'Đã xảy ra lỗi không xác định';
+      let errorMessage = 'Đã xảy ra lỗi khi tạo đơn hàng. Vui lòng thử lại sau.';
+      
+      if (axios.isAxiosError(error) && error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       
       if (errorMessage.includes('Không tìm thấy sản phẩm')) {
         setErrorMessage('Một số sản phẩm không còn tồn tại. Vui lòng cập nhật giỏ hàng.');
