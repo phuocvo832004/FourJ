@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import vn.payos.type.Webhook;
 import vn.payos.type.WebhookData;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface OrderService {
@@ -18,6 +19,7 @@ public interface OrderService {
     Order getOrderByOrderNumber(String orderNumber);
     OrderDto getOrderByNumber(String orderNumber);
     Page<OrderDto> getOrdersByUserId(String userId, Pageable pageable);
+    Page<OrderDto> getOrdersByUserIdAndDateRange(String userId, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable);
     List<OrderDto> getOrdersByStatus(OrderStatus status);
     OrderDto updateOrderStatus(Long id, UpdateOrderStatusRequest request);
     OrderDto cancelOrder(Long id);

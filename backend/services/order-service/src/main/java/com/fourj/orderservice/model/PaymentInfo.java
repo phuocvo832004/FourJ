@@ -1,5 +1,6 @@
 package com.fourj.orderservice.model;
 
+import com.fourj.orderservice.util.DateTimeUtil;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -37,5 +38,11 @@ public class PaymentInfo {
         if (paymentStatus == null) {
             paymentStatus = PaymentStatus.PENDING;
         }
+    }
+    
+    // Cập nhật paymentDate khi ghi nhận thanh toán thành công
+    public void setPaymentComplete() {
+        this.paymentStatus = PaymentStatus.COMPLETED;
+        this.paymentDate = DateTimeUtil.nowInVietnam();
     }
 }

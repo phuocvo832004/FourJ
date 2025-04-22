@@ -90,8 +90,7 @@ const SearchResultsPage = () => {
           price: product.price,
           image: product.imageUrl,
           category: product.categoryName,
-          rating: product.rating || 0,
-          discount: Math.random() > 0.6 ? Math.floor(Math.random() * 30) + 5 : undefined // Giả lập discount cho UI demo
+          rating: product.rating || 0
         })));
         
         setTotalHits(result.totalHits);
@@ -409,11 +408,6 @@ const SearchResultsPage = () => {
                           (e.target as HTMLImageElement).src = '/placeholder.jpg';
                         }}
                       />
-                      {product.discount && (
-                        <div className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-2 py-1 m-2 rounded shadow-md">
-                          -{product.discount}%
-                        </div>
-                      )}
                     </div>
                     
                     {/* Product info */}
@@ -440,14 +434,7 @@ const SearchResultsPage = () => {
                       
                       <div className="flex justify-between items-center">
                         <div>
-                          {product.discount ? (
-                            <div>
-                              <span className="font-bold text-lg text-gray-800">{(product.price * (1 - product.discount/100)).toLocaleString()}đ</span>
-                              <span className="text-sm text-gray-500 line-through ml-2">{product.price.toLocaleString()}đ</span>
-                            </div>
-                          ) : (
-                            <span className="font-bold text-lg text-gray-800">{product.price.toLocaleString()}đ</span>
-                          )}
+                          <span className="font-bold text-lg text-gray-800">{product.price.toLocaleString()}đ</span>
                         </div>
                         <button 
                           className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"

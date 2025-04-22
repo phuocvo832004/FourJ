@@ -18,6 +18,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 @Slf4j
@@ -65,12 +68,17 @@ public class OrderController {
 
         String userId = jwt.getSubject();
 
+        // Tạo Sort object theo sortBy và sortDir
         Sort sort = sortDir.equalsIgnoreCase("asc") ?
                 Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+
         Pageable pageable = PageRequest.of(page, size, sort);
+
+        log.info("Truy vấn tất cả đơn hàng của userId: {}", userId);
 
         return ResponseEntity.ok(orderService.getOrdersByUserId(userId, pageable));
     }
+
 
     @GetMapping("/status/{status}")
     public ResponseEntity<List<OrderDto>> getOrdersByStatus(@PathVariable OrderStatus status) {

@@ -218,16 +218,19 @@ const CheckoutPage: React.FC = () => {
 
       // Chuẩn bị dữ liệu đơn hàng theo định dạng backend yêu cầu
       const orderData = {
-        userId: user?.sub ? parseInt(user.sub, 10) : undefined,
         shippingAddress: formatFullAddress(),
         paymentMethod: paymentMethod,
         notes: notes,
-        orderItems: items.map(item => ({
-          productId: parseInt(item.productId),
-          productName: item.name,
-          quantity: item.quantity,
-          price: item.price
-        }))
+        items: items.map(item => {
+          // Kiểm tra và sử dụng trường đúng
+          const productName = item.productName;
+          return {
+            productId: parseInt(item.productId),
+            productName: productName,
+            quantity: item.quantity,
+            price: item.price
+          };
+        })
       };
       
       const response = await apiClient.post('/orders', orderData, {
@@ -238,12 +241,15 @@ const CheckoutPage: React.FC = () => {
       
       const orderResponse = response.data;
       
+      // Sau khi tạo đơn hàng thành công, xóa cache lịch sử đơn hàng để buộc làm mới
+      sessionStorage.removeItem('order_history_cache');
+      
       // Nếu thanh toán trực tuyến, chuyển hướng đến trang thanh toán từ link được order-service trả về
       if (paymentMethod === 'BANK_TRANSFER') {
-        if (orderResponse.paymentInfo && orderResponse.paymentInfo.paymentUrl) {
+        if (orderResponse.paymentInfo && orderResponse.paymentInfo.checkoutUrl) {
           // Lưu thông tin đơn hàng vào localStorage để khôi phục nếu có lỗi
           localStorage.setItem('last_order_number', orderResponse.orderNumber || '');
-          window.location.href = orderResponse.paymentInfo.paymentUrl;
+          window.location.href = orderResponse.paymentInfo.checkoutUrl;
           return;
         } else {
           throw new Error('Không nhận được URL thanh toán từ server');
@@ -255,6 +261,8 @@ const CheckoutPage: React.FC = () => {
       
       // Redirect after short delay
       setTimeout(() => {
+        // Đảm bảo cache lịch sử đơn hàng được xóa trước khi chuyển hướng
+        sessionStorage.removeItem('order_history_cache');
         navigate(`/order/${orderResponse.id}`);
       }, 1000);
     } catch (error: unknown) {

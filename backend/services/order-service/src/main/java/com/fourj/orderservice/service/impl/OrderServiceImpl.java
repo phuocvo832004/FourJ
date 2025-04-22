@@ -16,10 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.payos.PayOS;
 import vn.payos.type.*;
+import com.fourj.orderservice.util.DateTimeUtil;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Date;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -149,13 +149,13 @@ public class OrderServiceImpl implements OrderService {
 
         return PaymentData.builder()
                 .orderCode(Long.parseLong(order.getOrderNumber()))
-//                .amount(order.getTotalAmount().intValue())
-                .amount(10000)
+                .amount(order.getTotalAmount().intValue())
+//                .amount(10000)
                 .description("Đơn hàng #" + order.getOrderNumber())
                 .items(items)
                 .cancelUrl("http://localhost:80/checkout/orders/cancel?orderId=" + order.getId())
                 .returnUrl("http://localhost:80/checkout/orders/success?orderId=" + order.getId())
-                .expiredAt((Long) (System.currentTimeMillis() / 1000) + 5 * 60)
+                .expiredAt((System.currentTimeMillis() / 1000) + 5 * 60)
                 .build();
     }
 
@@ -170,9 +170,9 @@ public class OrderServiceImpl implements OrderService {
                 .shippingAddress(new ShippingAddressDto(order.getShippingAddress().getAddress()))
                 .paymentInfo(mapToPaymentInfoDto(order.getPaymentInfo()))
                 .notes(order.getNotes())
-                .createdAt(order.getCreatedAt())
-                .updatedAt(order.getUpdatedAt())
-                .completedAt(order.getCompletedAt())
+                .createdAt(DateTimeUtil.toVietnamDateTime(order.getCreatedAt()))
+                .updatedAt(DateTimeUtil.toVietnamDateTime(order.getUpdatedAt()))
+                .completedAt(DateTimeUtil.toVietnamDateTime(order.getCompletedAt()))
                 .build();
     }
 
@@ -194,7 +194,7 @@ public class OrderServiceImpl implements OrderService {
                 paymentInfo.getPaymentLinkId(),
                 paymentInfo.getCheckoutUrl(),
                 paymentInfo.getPayOsOrderCode(),
-                paymentInfo.getPaymentDate()
+                DateTimeUtil.toVietnamDateTime(paymentInfo.getPaymentDate())
         );
     }
 
@@ -207,9 +207,8 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public Order getOrderByOrderNumber(String orderNumber) {
-        Order order = orderRepository.findByOrderNumber(orderNumber)
+        return orderRepository.findByOrderNumber(orderNumber)
                 .orElseThrow(() -> new OrderNotFoundException("Không tìm thấy đơn hàng với số: " + orderNumber));
-        return order;
     }
 
     @Override
@@ -348,7 +347,8 @@ public class OrderServiceImpl implements OrderService {
             // Cập nhật thông tin thanh toán
             PaymentInfo paymentInfo = order.getPaymentInfo();
             paymentInfo.setTransactionId(data.getReference());
-            paymentInfo.setPaymentDate(LocalDateTime.now());
+            
+            // Không cần đặt paymentDate ở đây vì sẽ được đặt trong các phương thức chuyên biệt
 
             // Xác định trạng thái từ mã code
             String code = data.getCode();
@@ -356,7 +356,7 @@ public class OrderServiceImpl implements OrderService {
 
             if ("00".equals(code)) {
                 // Thanh toán thành công
-                paymentInfo.setPaymentStatus(PaymentStatus.COMPLETED);
+                paymentInfo.setPaymentComplete(); // Sử dụng phương thức mới
                 order.setStatus(OrderStatus.PROCESSING);
                 log.info("Thanh toán thành công cho đơn hàng: {}", order.getOrderNumber());
             } else if ("99".equals(code) || "98".equals(code)) {
@@ -379,5 +379,12 @@ public class OrderServiceImpl implements OrderService {
         } catch (Exception e) {
             log.error("Lỗi khi xử lý webhook PayOS: {}", e.getMessage(), e);
         }
+    }
+
+    @Override
+    public Page<OrderDto> getOrdersByUserIdAndDateRange(String userId, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+        log.info("Tìm đơn hàng từ {} đến {} cho user {}", startDate, endDate, userId);
+        return orderRepository.findByUserIdAndCreatedAtBetween(userId, startDate, endDate, pageable)
+                .map(this::mapToDto);
     }
 }

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/auth-hooks';
 import ErrorNotification from '../components/ErrorNotification';
 import apiClient from '../api/apiClient';
+import { formatDateTime } from '../utils/formatters';
 
 interface OrderItem {
   id: string;
@@ -36,7 +37,13 @@ const OrderHistoryPage: React.FC = () => {
   const navigate = useNavigate();
 
   const fetchOrders = useCallback(async () => {
-    if (!isAuthenticated || !user || isInitialized) return;
+    if (!isAuthenticated || !user) return;
+    
+    // Kiểm tra xem cache đã bị xóa hay chưa
+    const cacheWasCleared = !sessionStorage.getItem('order_history_cache');
+    
+    // Nếu đã khởi tạo và cache chưa bị xóa thì không cần fetch lại
+    if (isInitialized && !cacheWasCleared) return;
     
     setIsLoadingOrders(true);
     setError(null);
@@ -49,17 +56,21 @@ const OrderHistoryPage: React.FC = () => {
       
       const response = await apiClient.get(`/orders/my-orders`, {
         params: {
-          page: currentPage,
-          size: 5
+          page: currentPage - 1,
+          size: 10
         },
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
-      setOrders(response.data.content || []);
+      const ordersData = response.data.content || [];
+      setOrders(ordersData);
       setTotalPages(response.data.totalPages || 1);
       setIsInitialized(true);
+      
+      // Đánh dấu cache đã được làm mới
+      sessionStorage.setItem('order_history_cache', 'true');
     } catch (error) {
       console.error('Error fetching orders:', error);
       setError(error instanceof Error ? error.message : 'Không thể tải lịch sử đơn hàng. Vui lòng thử lại sau.');
@@ -72,13 +83,24 @@ const OrderHistoryPage: React.FC = () => {
   const handleChangePage = (page: number) => {
     if (page !== currentPage) {
       setCurrentPage(page);
-      setIsInitialized(false); // Đánh dấu để fetch lại khi trang thay đổi
+      setIsInitialized(false);
     }
   };
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      if (!sessionStorage.getItem('order_history_cache')) {
+        setIsInitialized(false);
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const handleReorder = async (orderId: string) => {
     try {
@@ -91,7 +113,6 @@ const OrderHistoryPage: React.FC = () => {
         }
       });
       
-      // Chuyển hướng đến trang giỏ hàng
       navigate('/cart');
     } catch (error) {
       console.error('Error reordering:', error);
@@ -195,20 +216,27 @@ const OrderHistoryPage: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
+  // Sử dụng formatDateTime từ utils
+  const formatOrderDate = (dateString: string) => {
+    return formatDateTime(dateString);
   };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-semibold mb-6">Lịch sử đơn hàng</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-semibold">Lịch sử đơn hàng</h1>
+        <button 
+          onClick={() => {
+            sessionStorage.removeItem('order_history_cache');
+            setIsInitialized(false);
+            setIsLoadingOrders(true);
+            fetchOrders();
+          }}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm"
+        >
+          Làm mới
+        </button>
+      </div>
       
       <div className="space-y-6">
         {orders.map((order) => (
@@ -217,7 +245,7 @@ const OrderHistoryPage: React.FC = () => {
               <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4">
                 <div>
                   <p className="text-gray-500">Mã đơn hàng: <span className="font-medium text-gray-900">#{order.orderNumber}</span></p>
-                  <p className="text-gray-500">Ngày đặt: <span className="font-medium text-gray-900">{formatDate(order.createdAt)}</span></p>
+                  <p className="text-gray-500">Ngày đặt: <span className="font-medium text-gray-900">{formatOrderDate(order.createdAt)}</span></p>
                 </div>
                 <div className="mt-2 md:mt-0">
                   <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
@@ -285,7 +313,6 @@ const OrderHistoryPage: React.FC = () => {
         ))}
       </div>
       
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex justify-center mt-8">
           <nav className="flex space-x-2" aria-label="Pagination">
@@ -325,4 +352,4 @@ const OrderHistoryPage: React.FC = () => {
   );
 };
 
-export default OrderHistoryPage; 
+export default OrderHistoryPage;

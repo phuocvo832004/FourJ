@@ -1,5 +1,6 @@
 package com.fourj.orderservice.model;
 
+import com.fourj.orderservice.util.DateTimeUtil;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -52,8 +53,8 @@ public class Order {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        createdAt = DateTimeUtil.nowInVietnam();
+        updatedAt = DateTimeUtil.nowInVietnam();
         if (status == null) {
             status = OrderStatus.PENDING;
         }
@@ -61,9 +62,9 @@ public class Order {
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = DateTimeUtil.nowInVietnam();
         if (status == OrderStatus.COMPLETED && completedAt == null) {
-            completedAt = LocalDateTime.now();
+            completedAt = DateTimeUtil.nowInVietnam();
         }
     }
 }

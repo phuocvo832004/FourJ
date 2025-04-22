@@ -6,6 +6,7 @@ import apiClient from '../api/apiClient';
 const PaymentResultPage: React.FC = () => {
   const [status, setStatus] = useState<'success' | 'failed' | 'loading' | 'error'>('loading');
   const [orderNumber, setOrderNumber] = useState<string>('');
+  const [orderId, setOrderId] = useState<string>('');
   const [amount, setAmount] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string>('');
   
@@ -56,6 +57,7 @@ const PaymentResultPage: React.FC = () => {
           const orderData = response.data;
           
           setOrderNumber(orderData.orderNumber || orderCode);
+          setOrderId(orderData.id || '');
           setAmount(orderData.totalAmount || 0);
           
           // Kiểm tra trạng thái thanh toán từ orderData nếu chưa có từ URL
@@ -113,7 +115,7 @@ const PaymentResultPage: React.FC = () => {
             <h2 className="text-2xl font-bold mb-4">Thanh toán thành công!</h2>
             <p className="text-gray-600 mb-4">Đơn hàng #{orderNumber} với số tiền {amount.toLocaleString('vi-VN')}₫ đã được thanh toán thành công.</p>
             <div className="flex justify-center gap-4">
-              <Link to={`/order/${orderNumber}`} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+              <Link to={`/order/${orderId}`} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
                 Xem chi tiết đơn hàng
               </Link>
               <Link to="/" className="px-6 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
@@ -134,7 +136,7 @@ const PaymentResultPage: React.FC = () => {
             <h2 className="text-2xl font-bold mb-4">Thanh toán không thành công</h2>
             <p className="text-gray-600 mb-6">Đơn hàng #{orderNumber} chưa được thanh toán.</p>
             <div className="flex justify-center gap-4">
-              <Link to={`/order/${orderNumber}`} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+              <Link to={`/order/${orderId}`} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
                 Xem chi tiết đơn hàng
               </Link>
               <button 

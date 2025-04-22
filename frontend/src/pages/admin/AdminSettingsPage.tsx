@@ -20,7 +20,6 @@ const AdminSettingsPage: React.FC = () => {
     currencySymbol: '₫',
     languages: ['vi', 'en'],
     defaultLanguage: 'vi',
-    timeZone: 'Asia/Ho_Chi_Minh',
     emailNotifications: true,
     smsNotifications: false,
   });
@@ -328,24 +327,6 @@ const AdminSettingsPage: React.FC = () => {
               <label htmlFor="smsNotifications" className="ml-2 block text-sm text-gray-700">
                 Gửi thông báo qua SMS
               </label>
-            </div>
-            
-            <div>
-              <label htmlFor="timeZone" className="block text-sm font-medium text-gray-700 mb-1">
-                Múi giờ
-              </label>
-              <select
-                name="timeZone"
-                id="timeZone"
-                value={settings.timeZone}
-                onChange={handleInputChange}
-                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-              >
-                <option value="Asia/Ho_Chi_Minh">Hồ Chí Minh (GMT+7)</option>
-                <option value="Asia/Bangkok">Bangkok (GMT+7)</option>
-                <option value="Asia/Singapore">Singapore (GMT+8)</option>
-                <option value="Asia/Tokyo">Tokyo (GMT+9)</option>
-              </select>
             </div>
           </div>
         </AdminCard>

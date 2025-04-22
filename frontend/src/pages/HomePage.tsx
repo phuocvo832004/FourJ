@@ -14,7 +14,6 @@ interface Category {
 
 interface FeaturedProduct extends Product {
   isNew?: boolean;
-  discountPercentage?: number;
 }
 
 const HomePage: React.FC = () => {
@@ -66,8 +65,7 @@ const HomePage: React.FC = () => {
             price: 149.99,
             description: 'Mô tả sản phẩm 2',
             image: product1Image,
-            category: 'Quần áo',
-            discountPercentage: 15
+            category: 'Quần áo'
           },
           {
             id: '3',
@@ -200,11 +198,6 @@ const HomePage: React.FC = () => {
                   {product.isNew && (
                     <div className="absolute top-0 left-0 bg-green-500 text-white text-xs font-bold px-3 py-1 z-10">
                       Mới
-                    </div>
-                  )}
-                  {product.discountPercentage && (
-                    <div className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-3 py-1 z-10">
-                      -{product.discountPercentage}%
                     </div>
                   )}
                   <Link to={`/products/${product.id}`}>
