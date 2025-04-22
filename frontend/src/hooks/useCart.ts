@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from './index';
 import { addItem, removeItem, updateQuantity, clearCart, toggleCart, setCartItems } from '../store/cartSlice';
 import { CartItem } from '../types';
@@ -18,6 +18,8 @@ export const useCart = () => {
   const dispatch = useAppDispatch();
   const { items, isOpen } = useAppSelector((state) => state.cart);
   const auth = useAuth();
+  const fetchingRef = useRef(false);
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const total = useMemo(() => {
     return items.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -31,33 +33,63 @@ export const useCart = () => {
     if (!auth.isAuthenticated) return null;
     try {
       return await auth.getToken();
-    } catch (error) {
-      console.error('Error getting token:', error);
+    } catch {
+      // Loại bỏ console log chi tiết lỗi, chỉ log khi thực sự cần
       return null;
     }
   }, [auth]);
 
   // Phương thức mới để lấy giỏ hàng từ API
   const fetchCart = useCallback(async () => {
-    try {
-      const token = await getToken();
-      if (!token) return null;
-
-      const response = await apiClient.get('/cart', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      const cartData = response.data;
-      // Cập nhật state Redux từ API
-      dispatch(setCartItems(cartData.items || []));
-      return cartData;
-    } catch (error) {
-      console.error('Failed to fetch cart:', error);
-      return null;
+    if (fetchingRef.current) {
+      return { items: [] };
     }
-  }, [dispatch, getToken]);
+
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+
+    return new Promise<{ items: CartItem[] }>(resolve => {
+      fetchingRef.current = true;
+      
+      fetchTimeoutRef.current = setTimeout(async () => {
+        try {
+          if (!auth.isAuthenticated) {
+            fetchingRef.current = false;
+            resolve({ items: [] });
+            return;
+          }
+          
+          const token = await getToken();
+          if (!token) {
+            fetchingRef.current = false;
+            resolve({ items: [] });
+            return;
+          }
+
+          const response = await apiClient.get('/cart', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          const cartData = response.data;
+          const itemsWithIds = (cartData.items || []).map((item: CartItem & {id?: string}) => ({
+            ...item,
+            cartItemId: String(item.id)
+          }));
+          
+          dispatch(setCartItems(itemsWithIds));
+          fetchingRef.current = false;
+          resolve(cartData);
+        } catch (error) {
+          console.error('Failed to fetch cart:', error);
+          fetchingRef.current = false;
+          resolve({ items: [] });
+        }
+      }, 100);
+    });
+  }, [dispatch, getToken, auth.isAuthenticated]);
 
   const addToCart = useCallback(async (item: CartItem) => {
     try {
@@ -97,7 +129,18 @@ export const useCart = () => {
         return;
       }
 
-      const response = await apiClient.delete(`/cart/items/${id}`, {
+      // Tìm sản phẩm trong giỏ hàng với id gốc
+      const itemToRemove = items.find(item => item.id === id || String(item.id) === id);
+      
+      if (!itemToRemove) {
+        dispatch(removeItem(id));
+        return;
+      }
+
+      // Sử dụng id gốc từ API để xóa
+      const cartItemId = itemToRemove.id;
+
+      const response = await apiClient.delete(`/cart/items/${cartItemId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -112,7 +155,7 @@ export const useCart = () => {
       // Fallback: cập nhật state cục bộ
       dispatch(removeItem(id));
     }
-  }, [dispatch, getToken]);
+  }, [dispatch, getToken, items]);
 
   const updateItemQuantity = useCallback(async (id: string, quantity: number) => {
     try {
@@ -122,8 +165,21 @@ export const useCart = () => {
         dispatch(updateQuantity({ id, quantity }));
         return;
       }
+      
+      // Tìm sản phẩm trong giỏ hàng với id gốc
+      const itemToUpdate = items.find(item => 
+        item.id === id || String(item.id) === id
+      );
+      
+      if (!itemToUpdate) {
+        dispatch(updateQuantity({ id, quantity }));
+        return;
+      }
 
-      const response = await apiClient.put(`/cart/items/${id}`, { quantity }, {
+      // Sử dụng id gốc từ API để cập nhật
+      const cartItemId = itemToUpdate.id;
+
+      const response = await apiClient.put(`/cart/items/${cartItemId}`, { quantity }, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -138,7 +194,7 @@ export const useCart = () => {
       // Fallback: cập nhật state cục bộ
       dispatch(updateQuantity({ id, quantity }));
     }
-  }, [dispatch, getToken]);
+  }, [dispatch, getToken, items]);
 
   const clearCartItems = useCallback(async () => {
     try {

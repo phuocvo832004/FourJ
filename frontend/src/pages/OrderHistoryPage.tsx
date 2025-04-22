@@ -81,24 +81,15 @@ const OrderHistoryPage: React.FC = () => {
   }, [fetchOrders]);
 
   const handleReorder = async (orderId: string) => {
-    if (!isAuthenticated) return;
-    
-    setIsLoadingOrders(true);
-    setError('');
-    
     try {
+      setIsLoadingOrders(true);
       const token = await getToken();
-      if (!token) {
-        throw new Error('Không có token xác thực');
-      }
       
-      const response = await apiClient.post(`/orders/${orderId}/reorder`, {}, {
+      await apiClient.post(`/orders/${orderId}/reorder`, {}, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
-      console.log('Đã tạo lại đơn hàng thành công:', response.data);
       
       // Chuyển hướng đến trang giỏ hàng
       navigate('/cart');
@@ -274,7 +265,7 @@ const OrderHistoryPage: React.FC = () => {
               
               <div className="mt-6 flex flex-wrap gap-3 justify-between">
                 <Link 
-                  to={`/orders/${order.id}`}
+                  to={`/order/${order.id}`}
                   className="inline-block bg-white border border-blue-600 text-blue-600 px-6 py-2 rounded-md hover:bg-blue-50 transition-colors"
                 >
                   Xem chi tiết
@@ -308,7 +299,7 @@ const OrderHistoryPage: React.FC = () => {
             
             {Array.from({ length: totalPages }).map((_, index) => (
               <button
-                key={index}
+                key={index + 1}
                 onClick={() => handleChangePage(index + 1)}
                 className={`px-4 py-2 border rounded-md ${
                   currentPage === index + 1

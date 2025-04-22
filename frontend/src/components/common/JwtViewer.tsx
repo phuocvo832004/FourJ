@@ -7,6 +7,7 @@ const JwtViewer: React.FC = () => {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
   const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
 
   useEffect(() => {
@@ -19,14 +20,6 @@ const JwtViewer: React.FC = () => {
     try {
       const accessToken = await getAccessTokenSilently();
       setToken(accessToken);
-      
-      // Log token ở console
-      console.log('%c===== JWT TOKEN FOR POSTMAN =====', 'background: #222; color: #bada55; font-size: 16px; font-weight: bold;');
-      console.log('%cToken:', 'color: #bada55; font-weight: bold;');
-      console.log(accessToken);
-      console.log('%cAuthorization header:', 'color: #bada55; font-weight: bold;');
-      console.log('%cBearer ' + accessToken, 'color: #bada55;');
-      console.log('%c=================================', 'background: #222; color: #bada55; font-size: 16px; font-weight: bold;');
       
       // Lưu token vào localStorage để dễ truy cập
       localStorage.setItem('auth_token_for_test', accessToken);
@@ -47,6 +40,15 @@ const JwtViewer: React.FC = () => {
     });
   };
 
+  const handleRefresh = () => {
+    // Cho phép log khi người dùng nhấn nút Refresh
+    fetchToken();
+  };
+
+  const toggleShowLogs = () => {
+    setShowLogs(!showLogs);
+  };
+
   if (!isAuthenticated || isLoading) {
     return null;
   }
@@ -58,7 +60,7 @@ const JwtViewer: React.FC = () => {
           <h3 className="text-lg font-bold">JWT Token</h3>
           <div className="flex space-x-2">
             <button
-              onClick={fetchToken}
+              onClick={handleRefresh}
               className="px-2 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
             >
               Refresh
@@ -82,9 +84,17 @@ const JwtViewer: React.FC = () => {
                 Bearer {token?.substring(0, 20)}...
               </div>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Token đã được lưu vào console và localStorage. Sử dụng F12 để xem đầy đủ.
-            </p>
+            <div className="mt-2 flex justify-between items-center">
+              <p className="text-xs text-gray-500">
+                {showLogs ? "Token sẽ được lưu vào localStorage" : "Token được lưu vào localStorage"}
+              </p>
+              <button 
+                onClick={toggleShowLogs}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                {showLogs ? "Ẩn log" : "Hiện log"}
+              </button>
+            </div>
           </>
         )}
       </div>

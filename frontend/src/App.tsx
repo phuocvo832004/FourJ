@@ -57,7 +57,7 @@ const Application = () => {
             <Route path="/" element={<MainLayout />}>
               <Route index element={<HomePage />} />
               <Route path="products" element={<ProductsPage />} />
-              <Route path="product/:id" element={<ProductDetailPage />} />
+              <Route path="products/:id" element={<ProductDetailPage />} />
               <Route path="categories" element={<CategoriesPage />} />
               <Route path="cart" element={<CartPage />} />
               <Route path="search" element={<SearchResultsPage />} />

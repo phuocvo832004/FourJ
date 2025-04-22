@@ -18,6 +18,19 @@ const PaymentResultPage: React.FC = () => {
       try {
         const params = new URLSearchParams(location.search);
         const orderCode = params.get('orderCode');
+        const status = params.get('status');
+        const errorMessage = params.get('message');
+        
+        // Xử lý trạng thái từ URL nếu có
+        if (status === 'success') {
+          setStatus('success');
+        } else if (status === 'cancelled' || status === 'failed') {
+          setStatus('failed');
+        } else if (status === 'error') {
+          setStatus('error');
+          setErrorMessage(errorMessage || 'Đã xảy ra lỗi không xác định');
+          return;
+        }
         
         if (!orderCode) {
           setStatus('error');
@@ -32,31 +45,41 @@ const PaymentResultPage: React.FC = () => {
           return;
         }
         
-        // Gọi API từ order-service để kiểm tra trạng thái thanh toán
-        const response = await apiClient.get(`/orders/number/${orderCode}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        const orderData = response.data;
-        
-        setOrderNumber(orderData.orderNumber || orderCode);
-        setAmount(orderData.totalAmount || 0);
-        
-        // Kiểm tra trạng thái thanh toán từ orderData
-        const paymentStatus = orderData.paymentInfo?.status;
-        
-        if (paymentStatus === 'PAID' || paymentStatus === 'COMPLETED' || paymentStatus === 'SUCCESS') {
-          setStatus('success');
-        } else if (paymentStatus === 'CANCELLED' || paymentStatus === 'FAILED' || paymentStatus === 'EXPIRED') {
-          setStatus('failed');
-        } else {
-          // PENDING, PROCESSING
-          setStatus('loading');
+        try {
+          // Gọi API từ order-service để kiểm tra trạng thái thanh toán
+          const response = await apiClient.get(`/orders/number/${orderCode}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
           
-          // Kiểm tra lại sau 5 giây
-          setTimeout(() => checkPaymentStatus(), 5000);
+          const orderData = response.data;
+          
+          setOrderNumber(orderData.orderNumber || orderCode);
+          setAmount(orderData.totalAmount || 0);
+          
+          // Kiểm tra trạng thái thanh toán từ orderData nếu chưa có từ URL
+          if (!status) {
+            const paymentStatus = orderData.paymentInfo?.status;
+            
+            if (paymentStatus === 'PAID' || paymentStatus === 'COMPLETED' || paymentStatus === 'SUCCESS') {
+              setStatus('success');
+            } else if (paymentStatus === 'CANCELLED' || paymentStatus === 'FAILED' || paymentStatus === 'EXPIRED') {
+              setStatus('failed');
+            } else {
+              // PENDING, PROCESSING
+              setStatus('loading');
+              
+              // Kiểm tra lại sau 5 giây
+              setTimeout(() => checkPaymentStatus(), 5000);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching order details:', error);
+          if (status !== 'success' && status !== 'cancelled' && status !== 'failed') {
+            setStatus('error');
+            setErrorMessage('Không thể lấy thông tin đơn hàng');
+          }
         }
       } catch (error) {
         console.error('Error checking payment status:', error);

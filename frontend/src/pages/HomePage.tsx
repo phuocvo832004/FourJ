@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Product } from '../types';
+import { formatCurrency } from '../utils/formatters';
 // Import hình ảnh sản phẩm
 import product1Image from '../assets/product-1.jpg';
 
@@ -31,7 +32,6 @@ const HomePage: React.FC = () => {
         // if (!productsResponse.ok) {
         //   throw new Error('Không thể tải sản phẩm nổi bật');
         // }
-        
         //const productsData = await productsResponse.ok ? await productsResponse.json() : [];
         
         // Fetch categories
@@ -215,7 +215,7 @@ const HomePage: React.FC = () => {
                     />
                     <div className="p-4">
                       <h3 className="text-lg font-semibold mb-2">{product.name}</h3>
-                      <p className="text-blue-600 font-bold mb-2">{product.price.toLocaleString('vi-VN')}₫</p>
+                      <p className="text-blue-600 font-bold mb-2">{formatCurrency(product.price)}₫</p>
                       <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description}</p>
                       <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors">
                         Xem chi tiết

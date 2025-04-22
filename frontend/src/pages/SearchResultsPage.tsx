@@ -158,7 +158,7 @@ const SearchResultsPage = () => {
 
   // Xử lý điều hướng đến trang chi tiết sản phẩm
   const handleProductClick = (productId: string) => {
-    navigate(`/product/${productId}`);
+    navigate(`/products/${productId}`);
   };
 
   return (

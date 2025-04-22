@@ -12,6 +12,11 @@ export interface Product {
 
 export interface CartItem extends Product {
   quantity: number;
+  productId: string;
+  productName: string;
+  productImage: string;
+  price: number;
+  cartItemId?: string;
 }
 
 export interface Category {
@@ -33,7 +38,7 @@ export interface Order {
   id: string;
   userId: string;
   items: OrderItem[];
-  total: number;
+  totalAmount: number;
   status: 'pending' | 'processing' | 'shipping' | 'delivered' | 'cancelled';
   createdAt: string;
   shippingAddress: string;

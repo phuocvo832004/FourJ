@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import product1Image from '../assets/product-1.jpg';
 import { useCart } from '../hooks/useCart';
 import apiClient from '../api/apiClient';
+import { formatCurrency } from '../utils/formatters';
 
 // Interface cho API response có thể chứa stock_quantity
 interface ApiProductResponse {
@@ -60,7 +61,7 @@ const ProductDetailPage: React.FC = () => {
       setProductError(null);
       
       try {
-        const response = await apiClient.get<ApiProductResponse>(`/product/${id}`);
+        const response = await apiClient.get<ApiProductResponse>(`/products/${id}`);
         
         // Chuyển đổi từ response format sang ApiProduct format
         const productData = response.data;
@@ -94,7 +95,6 @@ const ProductDetailPage: React.FC = () => {
           isActive: productData.isActive
         };
         
-        console.log('Normalized product:', normalizedProduct);
         setProduct(normalizedProduct);
       } catch (error) {
         console.error('Error fetching product:', error);
@@ -112,15 +112,23 @@ const ProductDetailPage: React.FC = () => {
     
     // Sử dụng categoryName hoặc category.name - đảm bảo có giá trị
     const categoryDisplay = product.categoryName || product.category?.name || 'Uncategorized';
+    const imageUrl = product.imageUrl || product1Image;
+    
+    // Format price với 2 chữ số thập phân
+    const formattedPrice = Number(product.price.toFixed(2));
     
     addItem({
       id: product.id.toString(),
       name: product.name,
-      price: product.price,
+      price: formattedPrice,
       description: product.description,
-      image: product.imageUrl || product1Image,
+      image: imageUrl,
       category: categoryDisplay,
-      quantity
+      quantity,
+      // Thêm các thuộc tính bắt buộc của CartItem
+      productId: product.id.toString(),
+      productName: product.name,
+      productImage: imageUrl
     });
   };
 
@@ -191,7 +199,7 @@ const ProductDetailPage: React.FC = () => {
         <div className="space-y-6">
           <h1 className="text-3xl font-bold">{product.name}</h1>
           
-          <p className="text-2xl font-bold text-blue-600">{product.price.toFixed(2)} VND</p>
+          <p className="text-2xl font-bold text-blue-600">{formatCurrency(product.price)} VND</p>
           
           <div className="bg-gray-50 p-4 rounded-lg">
             <p className="text-gray-700">{product.description}</p>

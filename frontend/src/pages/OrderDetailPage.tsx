@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-hooks';
 import { Order } from '../types';
@@ -14,14 +14,28 @@ const OrderDetailPage: React.FC = () => {
   const [isCancelling, setIsCancelling] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [tokenAttempt, setTokenAttempt] = useState(0);
+  const fetchAttemptedRef = useRef(false);
 
   const fetchOrder = useCallback(async () => {
+    if (fetchAttemptedRef.current && order) {
+      return;
+    }
+
+    if (tokenAttempt > 2) {
+      setError('Không thể lấy token xác thực. Vui lòng thử đăng nhập lại.');
+      setIsLoadingOrder(false);
+      return;
+    }
+
     try {
       setIsLoadingOrder(true);
       const token = await getToken();
       
       if (!token) {
+        setTokenAttempt(prev => prev + 1);
         setError('Bạn cần đăng nhập để xem chi tiết đơn hàng');
+        setIsLoadingOrder(false);
         return;
       }
       
@@ -32,24 +46,32 @@ const OrderDetailPage: React.FC = () => {
       });
       
       setOrder(response.data);
+      fetchAttemptedRef.current = true;
     } catch (error) {
       console.error('Error fetching order:', error);
       setError('Không thể tải thông tin đơn hàng. Vui lòng thử lại sau.');
+      fetchAttemptedRef.current = true;
     } finally {
       setIsLoadingOrder(false);
     }
-  }, [id, getToken]);
+  }, [id, getToken, tokenAttempt, order]);
 
   useEffect(() => {
     fetchOrder();
   }, [fetchOrder]);
 
   const handleCancelOrder = async () => {
+    if (tokenAttempt > 2) {
+      setError('Không thể lấy token xác thực. Vui lòng thử đăng nhập lại.');
+      return;
+    }
+
     try {
       setIsCancelling(true);
       
       const token = await getToken();
       if (!token) {
+        setTokenAttempt(prev => prev + 1);
         setError('Bạn cần đăng nhập để hủy đơn hàng');
         return;
       }
@@ -63,7 +85,6 @@ const OrderDetailPage: React.FC = () => {
       setOrder(response.data);
       setSuccessMessage('Đơn hàng đã được hủy thành công');
       
-      // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       console.error('Error cancelling order:', error);
@@ -76,12 +97,18 @@ const OrderDetailPage: React.FC = () => {
   const handleProcessPayment = async () => {
     if (!order || !id) return;
     
+    if (tokenAttempt > 2) {
+      setError('Không thể lấy token xác thực. Vui lòng thử đăng nhập lại.');
+      return;
+    }
+    
     setIsProcessingPayment(true);
     setError(null);
     
     try {
       const token = await getToken();
       if (!token) {
+        setTokenAttempt(prev => prev + 1);
         throw new Error('Không có token xác thực');
       }
       
@@ -142,7 +169,11 @@ const OrderDetailPage: React.FC = () => {
           
           <div class="info">
             <p><strong>Người nhận:</strong> ${order.recipientName}</p>
-            <p><strong>Địa chỉ:</strong> ${order.shippingAddress}</p>
+            <p><strong>Địa chỉ:</strong> ${
+              typeof order.shippingAddress === 'object' 
+                ? JSON.stringify(order.shippingAddress) 
+                : order.shippingAddress
+            }</p>
             <p><strong>Số điện thoại:</strong> ${order.recipientPhone}</p>
           </div>
           
@@ -168,7 +199,7 @@ const OrderDetailPage: React.FC = () => {
             <tfoot>
               <tr>
                 <td colspan="3" class="total">Tổng cộng:</td>
-                <td>${order.total.toLocaleString('vi-VN')}₫</td>
+                <td>${order.totalAmount ? order.totalAmount.toLocaleString('vi-VN') : 0}₫</td>
               </tr>
             </tfoot>
           </table>
@@ -248,22 +279,43 @@ const OrderDetailPage: React.FC = () => {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-md p-8 text-center">
-          <p className="text-xl text-gray-600 mb-4">Vui lòng đăng nhập để xem thông tin đơn hàng</p>
-          <Link to="/" className="inline-block bg-primary-600 text-white px-6 py-3 rounded-md hover:bg-primary-700 transition-colors">
-            Quay lại trang chủ
+          <p className="text-xl text-gray-600 mb-4">Vui lòng đăng nhập để xem chi tiết đơn hàng</p>
+          <Link to="/login" className="inline-block bg-primary-600 text-white px-6 py-3 rounded-md hover:bg-primary-700 transition-colors">
+            Đăng nhập
           </Link>
         </div>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <ErrorNotification message={error} onClose={() => setError('')} />
+        <div className="flex justify-center mt-8 gap-4">
+          {error.includes('token') && (
+            <button
+              onClick={() => window.location.href = '/login'}
+              className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Đăng nhập lại
+            </button>
+          )}
+          <Link to="/orders" className="inline-block bg-primary-600 text-white px-6 py-3 rounded-md hover:bg-primary-700 transition-colors">
+            Quay lại danh sách đơn hàng
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  
   if (!order) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-md p-8 text-center">
-          <p className="text-xl text-gray-600 mb-4">Không tìm thấy đơn hàng</p>
+          <p className="text-xl text-gray-600 mb-4">Không tìm thấy thông tin đơn hàng</p>
           <Link to="/orders" className="inline-block bg-primary-600 text-white px-6 py-3 rounded-md hover:bg-primary-700 transition-colors">
-            Quay lại lịch sử đơn hàng
+            Quay lại danh sách đơn hàng
           </Link>
         </div>
       </div>
@@ -362,7 +414,11 @@ const OrderDetailPage: React.FC = () => {
               <div className="bg-gray-50 rounded-lg p-4">
                 <p><span className="font-medium">Người nhận:</span> {order.recipientName}</p>
                 <p><span className="font-medium">Số điện thoại:</span> {order.recipientPhone}</p>
-                <p><span className="font-medium">Địa chỉ:</span> {order.shippingAddress}</p>
+                <p><span className="font-medium">Địa chỉ:</span> {
+                  typeof order.shippingAddress === 'object'
+                    ? JSON.stringify(order.shippingAddress)
+                    : order.shippingAddress
+                }</p>
               </div>
             </div>
           </div>
@@ -399,7 +455,7 @@ const OrderDetailPage: React.FC = () => {
                 <tfoot className="bg-gray-50">
                   <tr>
                     <td colSpan={3} className="py-4 px-4 text-right font-medium">Tổng cộng:</td>
-                    <td className="py-4 px-4 text-center font-bold">{order.total.toLocaleString('vi-VN')}₫</td>
+                    <td className="py-4 px-4 text-center font-bold">{order && order.totalAmount ? order.totalAmount.toLocaleString('vi-VN') : 0}₫</td>
                   </tr>
                 </tfoot>
               </table>

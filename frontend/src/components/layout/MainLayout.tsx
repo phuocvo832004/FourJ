@@ -1,18 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-hooks';
 import { useCart } from '../../hooks/useCart';
 import Cart from '../common/Cart';
-import { useAppDispatch } from '../../hooks';
-import { updateQuantity, removeItem } from '../../store/cartSlice';
 import SearchBar from '../common/SearchBar';
 
 const MainLayout: React.FC = () => {
-  const { isAuthenticated, user, login, logout, hasRole } = useAuth();
-  const { items, toggleCart, isOpen } = useCart();
+  const { isAuthenticated, user, login, logout, hasRole, isLoading } = useAuth();
+  const { items, toggleCart, isOpen, fetchCart, removeItem: removeCartItem, updateQuantity: updateCartQuantity } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const dispatch = useAppDispatch();
+
+  useEffect(() => {
+    // Thêm điều kiện kiểm tra để tránh gọi liên tục
+    const lastFetchTime = localStorage.getItem('cartLastFetchTime');
+    const currentTime = Date.now();
+    
+    // Chỉ fetch lại sau 30 giây
+    if (!lastFetchTime || (currentTime - parseInt(lastFetchTime)) > 30000) {
+      if (isAuthenticated && !isLoading) {
+        fetchCart().then(() => {
+          localStorage.setItem('cartLastFetchTime', currentTime.toString());
+        });
+      }
+    }
+  }, [isAuthenticated, isLoading, fetchCart]);
 
   const cartItemCount = items.reduce((total, item) => total + item.quantity, 0);
 
@@ -232,8 +244,8 @@ const MainLayout: React.FC = () => {
         isOpen={isOpen}
         onClose={() => toggleCart()}
         items={items}
-        onUpdateQuantity={(id, quantity) => dispatch(updateQuantity({ id, quantity }))}
-        onRemoveItem={(id) => dispatch(removeItem(id))}
+        onUpdateQuantity={(id, quantity) => updateCartQuantity(id, quantity)}
+        onRemoveItem={(id) => removeCartItem(id)}
       />
     </div>
   );

@@ -1,17 +1,14 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingCartIcon, UserIcon, MagnifyingGlassIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
-import { useAppSelector, useAppDispatch } from '../../hooks';
-import { toggleCart } from '../../store/cartSlice';
-import { RootState } from '../../store/store';
 import { useAuth } from '../../auth/auth-hooks';
 import { CartItem } from '../../types';
 import logoImage from '../../assets/logo.jpg';
 import SearchBar from '../common/SearchBar';
+import { useCart } from '../../hooks/useCart';
 
 const Header: React.FC = () => {
-  const dispatch = useAppDispatch();
-  const { items } = useAppSelector((state: RootState) => state.cart);
+  const { items, toggleCart } = useCart();
   const { isAuthenticated, isLoading, user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
@@ -22,51 +19,69 @@ const Header: React.FC = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
 
-  const toggleSearch = () => {
-    setIsSearchVisible(!isSearchVisible);
-  };
-
   return (
-    <header className="bg-white shadow-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo */}
+    <header className="bg-white shadow-sm">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 justify-between items-center">
+          {/* Logo and desktop menu */}
           <div className="flex items-center">
             <Link to="/" className="flex-shrink-0">
-              <img className="h-11 w-auto" src={logoImage} alt="Logo" />
+              <img
+                className="h-10 w-auto rounded-sm"
+                src={logoImage}
+                alt="FourJ Shop"
+              />
             </Link>
+            <div className="hidden md:ml-6 md:flex md:space-x-8">
+              <Link
+                to="/"
+                className="inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-sm font-medium text-gray-900 hover:border-gray-300"
+              >
+                Home
+              </Link>
+              <Link
+                to="/products"
+                className="inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700"
+              >
+                Products
+              </Link>
+              <Link
+                to="/categories"
+                className="inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700"
+              >
+                Categories
+              </Link>
+              <Link
+                to="/contact"
+                className="inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700"
+              >
+                Contact
+              </Link>
+            </div>
           </div>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex space-x-6">
-            <Link to="/" className="text-gray-700 hover:text-gray-900">Home</Link>
-            <Link to="/products" className="text-gray-700 hover:text-gray-900">Products</Link>
-            <Link to="/categories" className="text-gray-700 hover:text-gray-900">Categories</Link>
-            <Link to="/contact" className="text-gray-700 hover:text-gray-900">Contact</Link>
-          </nav>
-
-          {/* Desktop Search Bar */}
-          <div className="hidden md:block flex-1 max-w-lg mx-4">
-            <SearchBar />
-          </div>
-
-          {/* Mobile Search Toggle */}
-          <div className="md:hidden">
-            <button 
-              onClick={toggleSearch}
-              className="text-gray-700 p-2 rounded-md hover:bg-gray-100"
-              aria-label="Toggle search"
+          {/* Mobile menu button, search, and cart */}
+          <div className="flex items-center md:hidden">
+            <button
+              onClick={() => setIsSearchVisible(!isSearchVisible)}
+              className="p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100 mr-2"
             >
               <MagnifyingGlassIcon className="h-6 w-6" />
             </button>
-          </div>
-
-          {/* Mobile Menu Toggle */}
-          <div className="md:hidden">
+            <button
+              onClick={() => toggleCart()}
+              className="p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100 mr-2 relative"
+            >
+              <ShoppingCartIcon className="h-6 w-6" />
+              {cartItemsCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {cartItemsCount}
+                </span>
+              )}
+            </button>
             <button
               onClick={toggleMobileMenu}
-              className="text-gray-700 p-2 rounded-md hover:bg-gray-100"
-              aria-label="Open menu"
+              className="p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100"
             >
               {isMobileMenuOpen ? (
                 <XMarkIcon className="h-6 w-6" />
@@ -79,7 +94,7 @@ const Header: React.FC = () => {
           {/* Icons on Desktop */}
           <div className="hidden md:flex items-center space-x-4">
             <button
-              onClick={() => dispatch(toggleCart())}
+              onClick={() => toggleCart()}
               className="text-gray-700 hover:text-gray-900 relative"
             >
               <ShoppingCartIcon className="h-6 w-6" />
@@ -152,7 +167,7 @@ const Header: React.FC = () => {
               
               <div className="px-3 py-2">
                 <button
-                  onClick={() => dispatch(toggleCart())}
+                  onClick={() => toggleCart()}
                   className="flex items-center text-gray-700 hover:text-gray-900"
                 >
                   <ShoppingCartIcon className="h-5 w-5 mr-2" />

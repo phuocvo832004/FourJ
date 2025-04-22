@@ -302,7 +302,7 @@ const SellerProductsPage: React.FC = () => {
                         {formatCurrency(product.price)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Link to={`/products/${product.id}`} className="text-gray-600 hover:text-gray-900 mr-4">
+                        <Link to={`/product/${product.id}`} className="text-gray-600 hover:text-gray-900 mr-4">
                           Xem
                         </Link>
                         <Link to={`/seller/products/edit/${product.id}`} className="text-blue-600 hover:text-blue-900 mr-4">

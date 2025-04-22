@@ -5,12 +5,13 @@ import { useCart } from '../hooks/useCart';
 import ErrorNotification from '../components/ErrorNotification';
 import apiClient from '../api/apiClient';
 import axios from 'axios';
+import { formatCurrency } from '../utils/formatters';
 
 // Danh sách phương thức thanh toán phù hợp với backend
 const PAYMENT_METHODS = [
   { id: 'BANK_TRANSFER', label: 'Chuyển khoản ngân hàng' },
   { id: 'COD', label: 'Thanh toán khi nhận hàng' },
-  { id: 'ONLINE_PAYMENT', label: 'Thanh toán trực tuyến' }
+  { id: 'CREDIT_CARD', label: 'Thanh toán trực tuyến' }
 ];
 
 // Các tỉnh/thành phố
@@ -52,20 +53,40 @@ const CheckoutPage: React.FC = () => {
   });
   
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
-  const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[2].id); // Default to COD
+  const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[1].id); // Default to COD
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [tokenAttempt, setTokenAttempt] = useState(0);
 
   // Phí vận chuyển và tổng cộng
   const shippingFee = cartTotal > 0 ? 30000 : 0; // 30,000đ
   const grandTotal = cartTotal + shippingFee;
 
   useEffect(() => {
+    // Nếu đã khởi tạo rồi thì không cần chạy lại
+    if (isInitialized) return;
+    
     const initCheckout = async () => {
+      // Giới hạn số lần thử lấy token
+      if (tokenAttempt > 2) {
+        setErrorMessage('Không thể lấy token xác thực. Vui lòng thử đăng nhập lại.');
+        setIsInitialized(true);
+        return;
+      }
+
       try {
+        // Kiểm tra token trước khi fetchCart
+        const token = await getToken();
+        if (!token) {
+          setTokenAttempt(prev => prev + 1);
+          setErrorMessage('Bạn cần đăng nhập để tiếp tục thanh toán.');
+          setIsInitialized(true);
+          return;
+        }
+        
         // Lấy giỏ hàng mới nhất
         await fetchCart();
         
@@ -92,12 +113,18 @@ const CheckoutPage: React.FC = () => {
         setIsInitialized(true);
       } catch (error) {
         console.error('Error initializing checkout:', error);
-        setErrorMessage('Không thể tải thông tin giỏ hàng. Vui lòng thử lại sau.');
+        if (String(error).includes('token') || String(error).includes('authentication')) {
+          setTokenAttempt(prev => prev + 1);
+          setErrorMessage('Vấn đề xác thực. Vui lòng thử đăng nhập lại.');
+        } else {
+          setErrorMessage('Không thể tải thông tin giỏ hàng. Vui lòng thử lại sau.');
+        }
+        setIsInitialized(true);
       }
     };
 
     initCheckout();
-  }, [fetchCart, user]);
+  }, [fetchCart, user, tokenAttempt, getToken, isInitialized]);
 
   const validateForm = (): boolean => {
     const errors: ValidationErrors = {};
@@ -173,32 +200,54 @@ const CheckoutPage: React.FC = () => {
     setSuccessMessage('');
     
     try {
+      // Giới hạn số lần thử lấy token
+      if (tokenAttempt > 2) {
+        setErrorMessage('Không thể lấy token xác thực. Vui lòng thử đăng nhập lại.');
+        setIsLoading(false);
+        return;
+      }
+
       const token = await getToken();
       
       if (!token) {
+        setTokenAttempt(prev => prev + 1);
         setErrorMessage('Bạn cần đăng nhập để tiếp tục thanh toán.');
         setIsLoading(false);
         return;
       }
-      
-      const response = await apiClient.post('/orders', {
+
+      // Chuẩn bị dữ liệu đơn hàng theo định dạng backend yêu cầu
+      const orderData = {
+        userId: user?.sub ? parseInt(user.sub, 10) : undefined,
         shippingAddress: formatFullAddress(),
-        recipientName: shippingAddress.fullName,
-        recipientPhone: shippingAddress.phone,
         paymentMethod: paymentMethod,
-        notes: notes
-      }, {
+        notes: notes,
+        orderItems: items.map(item => ({
+          productId: parseInt(item.productId),
+          productName: item.name,
+          quantity: item.quantity,
+          price: item.price
+        }))
+      };
+      
+      const response = await apiClient.post('/orders', orderData, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
-      const orderData = response.data;
+      const orderResponse = response.data;
       
       // Nếu thanh toán trực tuyến, chuyển hướng đến trang thanh toán từ link được order-service trả về
-      if (paymentMethod === 'ONLINE_PAYMENT' && orderData.paymentInfo && orderData.paymentInfo.paymentUrl) {
-        window.location.href = orderData.paymentInfo.paymentUrl;
-        return;
+      if (paymentMethod === 'BANK_TRANSFER') {
+        if (orderResponse.paymentInfo && orderResponse.paymentInfo.paymentUrl) {
+          // Lưu thông tin đơn hàng vào localStorage để khôi phục nếu có lỗi
+          localStorage.setItem('last_order_number', orderResponse.orderNumber || '');
+          window.location.href = orderResponse.paymentInfo.paymentUrl;
+          return;
+        } else {
+          throw new Error('Không nhận được URL thanh toán từ server');
+        }
       }
       
       // Nếu không phải thanh toán trực tuyến hoặc không có URL thanh toán
@@ -206,26 +255,38 @@ const CheckoutPage: React.FC = () => {
       
       // Redirect after short delay
       setTimeout(() => {
-        navigate(`/order/${orderData.id}`);
+        navigate(`/order/${orderResponse.id}`);
       }, 1000);
     } catch (error: unknown) {
       // Xử lý các loại lỗi từ backend
-      let errorMessage = 'Đã xảy ra lỗi khi tạo đơn hàng. Vui lòng thử lại sau.';
+      let errorMsg = 'Đã xảy ra lỗi khi tạo đơn hàng. Vui lòng thử lại sau.';
       
-      if (axios.isAxiosError(error) && error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+      if (axios.isAxiosError(error)) {
+        console.error('Checkout error:', error);
+        if (error.response?.data?.message) {
+          errorMsg = error.response.data.message;
+        }
       } else if (error instanceof Error) {
-        errorMessage = error.message;
+        errorMsg = error.message;
       }
       
-      if (errorMessage.includes('Không tìm thấy sản phẩm')) {
+      if (errorMsg.includes('Không tìm thấy sản phẩm')) {
         setErrorMessage('Một số sản phẩm không còn tồn tại. Vui lòng cập nhật giỏ hàng.');
-      } else if (errorMessage.includes('Giá sản phẩm')) {
+      } else if (errorMsg.includes('Giá sản phẩm')) {
         setErrorMessage('Giá sản phẩm đã thay đổi. Vui lòng làm mới giỏ hàng.');
-      } else if (errorMessage.includes('không đủ số lượng')) {
+      } else if (errorMsg.includes('không đủ số lượng')) {
         setErrorMessage('Một số sản phẩm không đủ số lượng trong kho.');
+      } else if (errorMsg.includes('URL thanh toán')) {
+        setErrorMessage('Không thể kết nối đến cổng thanh toán. Vui lòng thử lại sau hoặc chọn phương thức thanh toán khác.');
       } else {
-        setErrorMessage('Đã xảy ra lỗi khi tạo đơn hàng. Vui lòng thử lại sau.');
+        setErrorMessage(errorMsg);
+      }
+      
+      // Thử làm mới giỏ hàng để đảm bảo dữ liệu mới nhất
+      try {
+        await fetchCart();
+      } catch (cartError) {
+        console.error('Failed to refresh cart:', cartError);
       }
     } finally {
       setIsLoading(false);
@@ -266,6 +327,17 @@ const CheckoutPage: React.FC = () => {
           message={errorMessage} 
           onClose={() => setErrorMessage('')} 
         />
+      )}
+      
+      {errorMessage && errorMessage.includes('token') && (
+        <div className="flex justify-center mt-4 mb-6">
+          <button
+            onClick={() => window.location.href = '/login'}
+            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Đăng nhập lại
+          </button>
+        </div>
       )}
       
       {successMessage && (
@@ -437,7 +509,7 @@ const CheckoutPage: React.FC = () => {
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors disabled:bg-blue-300"
                 disabled={isLoading}
               >
-                {isLoading ? 'Đang xử lý...' : `Đặt hàng (${grandTotal.toLocaleString('vi-VN')}₫)`}
+                {isLoading ? 'Đang xử lý...' : `Đặt hàng (${formatCurrency(grandTotal)}₫)`}
               </button>
             </form>
           </div>
@@ -456,10 +528,10 @@ const CheckoutPage: React.FC = () => {
                   <div className="ml-4 flex-1">
                     <h3 className="text-sm font-medium">{item.name}</h3>
                     <p className="text-sm text-gray-500">
-                      SL: {item.quantity} x {item.price.toLocaleString('vi-VN')}₫
+                      SL: {item.quantity} x {formatCurrency(item.price)}₫
                     </p>
                     <p className="text-sm font-medium text-gray-900 mt-1">
-                      {(item.price * item.quantity).toLocaleString('vi-VN')}₫
+                      {formatCurrency(item.price * item.quantity)}₫
                     </p>
                   </div>
                 </div>
@@ -469,15 +541,15 @@ const CheckoutPage: React.FC = () => {
             <div className="border-t border-gray-200 mt-6 pt-6 space-y-4">
               <div className="flex justify-between">
                 <span className="text-gray-600">Tạm tính</span>
-                <span>{cartTotal.toLocaleString('vi-VN')}₫</span>
+                <span>{formatCurrency(cartTotal)}₫</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Phí vận chuyển</span>
-                <span>{shippingFee.toLocaleString('vi-VN')}₫</span>
+                <span>{formatCurrency(shippingFee)}₫</span>
               </div>
               <div className="flex justify-between text-lg font-semibold">
                 <span>Tổng cộng</span>
-                <span className="text-blue-600">{grandTotal.toLocaleString('vi-VN')}₫</span>
+                <span className="text-blue-600">{formatCurrency(grandTotal)}₫</span>
               </div>
             </div>
           </div>

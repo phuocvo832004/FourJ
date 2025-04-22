@@ -50,28 +50,25 @@ export const useAuth = () => {
     try {
       const token = await getAccessTokenSilently();
       
-      // Log token để test với Postman
-      console.log('JWT Token:', token);
-      
-      // Hiển thị thông báo với token để dễ sao chép
-      console.log('%c----- TOKEN FOR POSTMAN -----', 'background: #222; color: #bada55; font-size: 16px');
-      console.log('%cBearer ' + token, 'background: #222; color: #bada55; font-size: 14px');
-      console.log('%c----------------------------', 'background: #222; color: #bada55; font-size: 16px');
+      // Loại bỏ việc log token ra console mỗi lần gọi
+      // console.log('JWT Token:', token);
+      // console.log('%c----- TOKEN FOR POSTMAN -----', 'background: #222; color: #bada55; font-size: 16px');
+      // console.log('%cBearer ' + token, 'background: #222; color: #bada55; font-size: 14px');
+      // console.log('%c----------------------------', 'background: #222; color: #bada55; font-size: 16px');
       
       return token;
     } catch (err) {
       console.error("Error getting token:", err);
       
-      // Kiểm tra lỗi Missing Refresh Token
+      // Không tự động reload trang khi gặp lỗi Missing Refresh Token
+      // Thay vào đó, trả về null và để component xử lý
       const error = err as Error;
       if (error.message && error.message.includes('Missing Refresh Token')) {
-        // Xóa cache Auth0
+        // Chỉ xóa cache Auth0 nhưng không reload trang
         localStorage.removeItem('auth0.is.authenticated');
         
-        // Reload trang sau 1 giây để người dùng đăng nhập lại
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
+        // Log thông báo lỗi
+        console.error('Missing Refresh Token. Please log in again.');
       }
       
       return null;

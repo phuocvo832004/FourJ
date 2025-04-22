@@ -2,8 +2,8 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { CartItem } from '../../types';
-import { useAuth } from '../../auth/auth-hooks';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { formatCurrency } from '../../utils/formatters';
 
 interface CartProps {
   isOpen: boolean;
@@ -17,21 +17,10 @@ const Cart: React.FC<CartProps> = ({
   isOpen,
   onClose,
   items,
-  onUpdateQuantity,
   onRemoveItem,
 }) => {
-  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const { isAuthenticated, login } = useAuth();
-  const navigate = useNavigate();
-
-  const handleCheckout = () => {
-    if (isAuthenticated) {
-      onClose();
-      navigate('/checkout');
-    } else {
-      login();
-    }
-  };
+  // Tính tổng giá trị giỏ hàng từ các items được truyền vào props
+  const cartTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   return (
     <AnimatePresence>
@@ -77,70 +66,57 @@ const Cart: React.FC<CartProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-5">
-                    {items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center space-x-4 border-b border-gray-100 pb-5 hover:bg-gray-50 p-2 rounded-lg transition duration-150"
-                      >
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-20 h-20 object-cover rounded-lg shadow-sm"
-                        />
-                        <div className="flex-1">
-                          <h3 className="font-medium text-gray-800">{item.name}</h3>
-                          <p className="text-blue-600 font-semibold">
-                            ${item.price.toFixed(2)}
-                          </p>
-                          <div className="flex items-center space-x-3 mt-3">
-                            <button
-                              onClick={() =>
-                                onUpdateQuantity(item.id, item.quantity - 1)
-                              }
-                              className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-full hover:bg-gray-100 transition duration-150"
-                            >
-                              -
-                            </button>
-                            <span className="font-medium w-6 text-center">{item.quantity}</span>
-                            <button
-                              onClick={() =>
-                                onUpdateQuantity(item.id, item.quantity + 1)
-                              }
-                              className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-full hover:bg-gray-100 transition duration-150"
-                            >
-                              +
-                            </button>
+                    <div className="overflow-auto max-h-96 px-4">
+                      {items.map(item => (
+                        <div key={item.id} className="py-4 flex items-center border-b border-gray-200">
+                          <div className="flex-shrink-0 w-20 h-20 bg-gray-100 rounded-md overflow-hidden">
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              className="w-full h-full object-center object-cover"
+                            />
+                          </div>
+                          <div className="ml-4 flex-1">
+                            <div className="flex justify-between">
+                              <h3 className="text-sm font-medium text-gray-900">{item.name}</h3>
+                              <button
+                                onClick={() => onRemoveItem(item.id)}
+                                className="text-sm font-medium text-red-600 hover:text-red-800"
+                              >
+                                Xóa
+                              </button>
+                            </div>
+                            <p className="mt-1 text-sm text-gray-500">
+                              SL: {item.quantity} x {formatCurrency(item.price)}₫
+                            </p>
+                            <p className="mt-1 text-sm font-medium text-gray-900">
+                              {formatCurrency(item.price * item.quantity)}₫
+                            </p>
                           </div>
                         </div>
-                        <button
-                          onClick={() => onRemoveItem(item.id)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full transition duration-150"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                      ))}
+                    </div>
+                    <div className="px-4 py-4 border-t border-gray-200">
+                      <div className="flex justify-between text-base font-medium text-gray-900">
+                        <p>Tổng cộng</p>
+                        <p>{formatCurrency(cartTotal)}₫</p>
                       </div>
-                    ))}
+                      <p className="mt-0.5 text-sm text-gray-500">
+                        Chưa bao gồm phí vận chuyển
+                      </p>
+                      <div className="mt-4 space-y-2">
+                        <Link
+                          to="/checkout"
+                          className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+                          onClick={onClose}
+                        >
+                          Thanh toán ({formatCurrency(cartTotal)}₫)
+                        </Link>
+
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
-
-              {/* Footer */}
-              <div className="border-t border-gray-100 p-5 bg-gray-50 rounded-bl-3xl">
-                <div className="flex justify-between mb-4">
-                  <span className="text-gray-700 font-semibold">Tổng tiền:</span>
-                  <span className="font-bold text-blue-600 text-xl">
-                    ${total.toFixed(2)}
-                  </span>
-                </div>
-                <button 
-                  onClick={handleCheckout}
-                  disabled={items.length === 0}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-xl font-semibold transition duration-200 shadow-md hover:shadow-lg disabled:bg-gray-300 disabled:shadow-none"
-                >
-                  {isAuthenticated ? 'Thanh toán ngay' : 'Đăng nhập để thanh toán'}
-                </button>
               </div>
             </div>
           </motion.div>

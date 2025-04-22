@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import ErrorNotification from '../components/ErrorNotification';
+import { CartItem } from '../types/index';
 
 const CartPage: React.FC = () => {
   const { items, removeItem, updateQuantity, clearCart, total, fetchCart } = useCart();
@@ -11,9 +12,21 @@ const CartPage: React.FC = () => {
 
   useEffect(() => {
     const loadCart = async () => {
+      // Kiểm tra thời gian gọi API gần nhất
+      const lastFetchTime = localStorage.getItem('cartPageLastFetchTime');
+      const currentTime = Date.now();
+      
+      // Nếu đã gọi trong 30 giây qua, không gọi lại
+      if (lastFetchTime && (currentTime - parseInt(lastFetchTime)) < 30000) {
+        setIsLoading(false);
+        return;
+      }
+      
       setIsLoading(true);
       try {
         await fetchCart();
+        // Lưu thời gian gọi API
+        localStorage.setItem('cartPageLastFetchTime', currentTime.toString());
       } catch (error) {
         console.error('Failed to load cart:', error);
         setErrorMessage('Không thể tải giỏ hàng. Vui lòng thử lại sau.');
@@ -38,13 +51,13 @@ const CartPage: React.FC = () => {
     }
   };
 
-  const handleRemoveItem = async (id: string) => {
+  const handleRemoveItem = async (cartItemId: string) => {
     try {
-      await removeItem(id);
+      await removeItem(cartItemId);
       // Xóa cảnh báo tồn kho cho sản phẩm đã xóa
-      if (stockWarnings[id]) {
+      if (stockWarnings[cartItemId]) {
         const newWarnings = { ...stockWarnings };
-        delete newWarnings[id];
+        delete newWarnings[cartItemId];
         setStockWarnings(newWarnings);
       }
     } catch (error) {
@@ -63,12 +76,12 @@ const CartPage: React.FC = () => {
     }
   };
 
-  // Hiển thị cảnh báo tồn kho
-  const renderStockWarning = (itemId: string) => {
-    if (stockWarnings[itemId]) {
+  const renderStockWarning = (item: CartItem) => {
+    const cartItemId = item.id; // Sử dụng id chính là id của cart_item trong database
+    if (stockWarnings[cartItemId]) {
       return (
         <p className="text-red-500 text-sm mt-1">
-          Chỉ còn {stockWarnings[itemId]} sản phẩm trong kho
+          Chỉ còn {stockWarnings[cartItemId]} sản phẩm trong kho
         </p>
       );
     }
@@ -129,7 +142,7 @@ const CartPage: React.FC = () => {
                       <div>
                         <h3 className="font-medium">{item.name}</h3>
                         {item.variant && <p className="text-sm text-gray-500">{item.variant}</p>}
-                        {renderStockWarning(item.id)}
+                        {renderStockWarning(item)}
                       </div>
                     </div>
                   </td>

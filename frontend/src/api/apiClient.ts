@@ -45,17 +45,30 @@ apiClient.interceptors.response.use(
       if (error.response.status === 401) {
         // Redirect to login or refresh token
         console.error('Authentication error - User needs to login');
+        // Kiểm tra xem người dùng đang ở trang thanh toán không
+        if (window.location.pathname.includes('/checkout') || 
+            window.location.pathname.includes('/payment')) {
+          // Lưu URL hiện tại để redirect sau khi đăng nhập
+          localStorage.setItem('redirect_after_login', window.location.href);
+          // Redirect đến trang đăng nhập
+          window.location.href = '/login';
+        }
       } else if (error.response.status === 404) {
         console.error('API endpoint not found');
       } else if (error.response.status >= 500) {
         console.error('Server error - Please try again later');
       }
+      
+      // Đính kèm thêm thông tin lỗi từ server để frontend có thể xử lý
+      error.errorMessage = error.response.data?.message || 'Lỗi không xác định';
     } else if (error.request) {
       // Lỗi không nhận được response (network error)
       console.error('Network Error: No response received from server');
+      error.errorMessage = 'Lỗi kết nối mạng. Vui lòng kiểm tra kết nối internet của bạn.';
     } else {
       // Lỗi khi setup request
       console.error('Request Error:', error.message);
+      error.errorMessage = 'Lỗi khi gửi yêu cầu: ' + error.message;
     }
     
     return Promise.reject(error);
