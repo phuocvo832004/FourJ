@@ -17,12 +17,23 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.payos.PayOS;
 import vn.payos.type.*;
 import com.fourj.orderservice.util.DateTimeUtil;
+import com.fourj.orderservice.exception.UnauthorizedAccessException;
+import com.fourj.orderservice.dto.OrderStatisticsDto;
+import java.math.RoundingMode;
+import java.util.HashMap;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.time.YearMonth;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -233,11 +244,114 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional
     public OrderDto updateOrderStatus(Long id, UpdateOrderStatusRequest request) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new OrderNotFoundException("Không tìm thấy đơn hàng: " + id));
+        
+        // Lưu trạng thái cũ để ghi log
+        OrderStatus oldStatus = order.getStatus();
+        PaymentStatus oldPaymentStatus = order.getPaymentInfo().getPaymentStatus();
+        
+        // Kiểm tra luồng trạng thái hợp lệ
+        validateStatusTransition(oldStatus, request.getStatus());
+        
+        // Cập nhật trạng thái đơn hàng
         order.setStatus(request.getStatus());
-        return mapToDto(orderRepository.save(order));
+        
+        // Cập nhật note nếu có
+        if (request.getNote() != null && !request.getNote().isEmpty()) {
+            order.setNotes(request.getNote());
+        }
+        
+        // Đồng bộ PaymentStatus theo OrderStatus
+        synchronizePaymentStatus(order, request.getStatus());
+        
+        // Lưu đơn hàng
+        Order savedOrder = orderRepository.save(order);
+        
+        // Ghi log chi tiết
+        log.info("Đã cập nhật đơn hàng #{} từ status={} thành {} và payment từ {} thành {}",
+                savedOrder.getOrderNumber(), oldStatus, savedOrder.getStatus(),
+                oldPaymentStatus, savedOrder.getPaymentInfo().getPaymentStatus());
+        
+        return mapToDto(savedOrder);
+    }
+
+    // Thêm phương thức để kiểm tra tính hợp lệ của luồng trạng thái
+    private void validateStatusTransition(OrderStatus currentStatus, OrderStatus newStatus) {
+        // Không cho phép cập nhật từ trạng thái CANCELLED hoặc COMPLETED
+        if (currentStatus == OrderStatus.CANCELLED) {
+            throw new IllegalStateException("Không thể cập nhật đơn hàng đã hủy");
+        }
+        
+        if (currentStatus == OrderStatus.COMPLETED && newStatus != OrderStatus.REFUNDED) {
+            throw new IllegalStateException("Đơn hàng đã hoàn thành chỉ có thể chuyển sang trạng thái hoàn tiền");
+        }
+        
+        // Kiểm tra luồng hợp lệ - có thể mở rộng tùy theo nghiệp vụ
+        if (currentStatus == OrderStatus.PENDING && 
+            !(newStatus == OrderStatus.PROCESSING || newStatus == OrderStatus.CANCELLED)) {
+            throw new IllegalStateException("Đơn hàng đang chờ xử lý chỉ có thể chuyển sang đang xử lý hoặc hủy");
+        }
+        
+        if (currentStatus == OrderStatus.PROCESSING && 
+            !(newStatus == OrderStatus.SHIPPED || newStatus == OrderStatus.CANCELLED)) {
+            throw new IllegalStateException("Đơn hàng đang xử lý chỉ có thể chuyển sang đang giao hoặc hủy");
+        }
+        
+        if (currentStatus == OrderStatus.SHIPPED && 
+            !(newStatus == OrderStatus.DELIVERED || newStatus == OrderStatus.CANCELLED)) {
+            throw new IllegalStateException("Đơn hàng đang giao chỉ có thể chuyển sang đã giao hoặc hủy");
+        }
+        
+        if (currentStatus == OrderStatus.DELIVERED && 
+            !(newStatus == OrderStatus.COMPLETED || newStatus == OrderStatus.CANCELLED || newStatus == OrderStatus.REFUNDED)) {
+            throw new IllegalStateException("Đơn hàng đã giao chỉ có thể chuyển sang hoàn thành, hủy hoặc hoàn tiền");
+        }
+    }
+
+    // Thêm phương thức đồng bộ PaymentStatus theo OrderStatus
+    private void synchronizePaymentStatus(Order order, OrderStatus newStatus) {
+        PaymentInfo paymentInfo = order.getPaymentInfo();
+        
+        switch (newStatus) {
+            case PENDING:
+                // Đơn hàng chờ xử lý - giữ nguyên trạng thái thanh toán
+                break;
+            case PROCESSING:
+                // Nếu là COD, giữ PaymentStatus là PENDING
+                // Nếu là phương thức thanh toán khác và đã thanh toán, giữ là COMPLETED
+                if (paymentInfo.getPaymentMethod() != PaymentMethod.COD && 
+                    paymentInfo.getPaymentStatus() == PaymentStatus.COMPLETED) {
+                    // Giữ nguyên status COMPLETED
+                } else if (paymentInfo.getPaymentMethod() == PaymentMethod.COD) {
+                    paymentInfo.setPaymentStatus(PaymentStatus.PENDING);
+                }
+                break;
+            case SHIPPED:
+            case DELIVERED:
+                // Không thay đổi trạng thái thanh toán
+                break;
+            case COMPLETED:
+                // Đơn hàng hoàn thành - đồng bộ với trạng thái thanh toán
+                if (paymentInfo.getPaymentMethod() == PaymentMethod.COD) {
+                    // Nếu là COD và đơn hoàn thành, cập nhật thanh toán thành COMPLETED
+                    paymentInfo.setPaymentComplete();
+                }
+                break;
+            case CANCELLED:
+                // Đơn hàng bị hủy - cập nhật trạng thái thanh toán sang CANCELLED
+                // Chỉ cập nhật nếu thanh toán đang ở trạng thái PENDING
+                if (paymentInfo.getPaymentStatus() == PaymentStatus.PENDING) {
+                    paymentInfo.setPaymentStatus(PaymentStatus.CANCELLED);
+                }
+                break;
+            case REFUNDED:
+                // Đơn hàng hoàn tiền
+                paymentInfo.setPaymentStatus(PaymentStatus.CANCELLED);
+                break;
+        }
     }
 
     @Override
@@ -267,7 +381,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public OrderDto createOrderFromEvent(String userId, CreateOrderRequest request) {
+    public void createOrderFromEvent(String userId, CreateOrderRequest request) {
         try {
             if (request.getItems() == null || request.getItems().isEmpty()) {
                 throw new EmptyCartException("Danh sách sản phẩm không được để trống");
@@ -326,7 +440,7 @@ public class OrderServiceImpl implements OrderService {
             }
 
             // Trả về OrderDto
-            return mapToDto(savedOrder);
+            mapToDto(savedOrder);
 
         } catch (Exception e) {
             log.error("Lỗi khi tạo đơn hàng từ sự kiện cho user {}: {}", userId, e.getMessage());
@@ -347,8 +461,6 @@ public class OrderServiceImpl implements OrderService {
             // Cập nhật thông tin thanh toán
             PaymentInfo paymentInfo = order.getPaymentInfo();
             paymentInfo.setTransactionId(data.getReference());
-            
-            // Không cần đặt paymentDate ở đây vì sẽ được đặt trong các phương thức chuyên biệt
 
             // Xác định trạng thái từ mã code
             String code = data.getCode();
@@ -356,13 +468,30 @@ public class OrderServiceImpl implements OrderService {
 
             if ("00".equals(code)) {
                 // Thanh toán thành công
-                paymentInfo.setPaymentComplete(); // Sử dụng phương thức mới
-                order.setStatus(OrderStatus.PROCESSING);
+                paymentInfo.setPaymentComplete(); // Thiết lập PaymentStatus = COMPLETED và ghi nhận ngày thanh toán
+
+                // Chỉ cập nhật trạng thái đơn hàng nếu đang ở PENDING
+                // Tránh cập nhật trạng thái order khi đơn hàng đã chuyển sang trạng thái khác
+                if (order.getStatus() == OrderStatus.PENDING) {
+                    order.setStatus(OrderStatus.PROCESSING);
+                    log.info("Cập nhật trạng thái đơn hàng thành PROCESSING sau khi thanh toán thành công");
+                } else {
+                    log.info("Giữ nguyên trạng thái đơn hàng {} vì đã không còn ở trạng thái PENDING", order.getStatus());
+                }
+
                 log.info("Thanh toán thành công cho đơn hàng: {}", order.getOrderNumber());
             } else if ("99".equals(code) || "98".equals(code)) {
                 // Thanh toán bị hủy (99) hoặc hết hạn (98)
                 paymentInfo.setPaymentStatus(PaymentStatus.CANCELLED);
-                order.setStatus(OrderStatus.CANCELLED);
+
+                // Chỉ cập nhật status của order sang CANCELLED nếu đơn hàng vẫn đang ở PENDING
+                if (order.getStatus() == OrderStatus.PENDING) {
+                    order.setStatus(OrderStatus.CANCELLED);
+                    log.info("Hủy đơn hàng do thanh toán bị hủy/hết hạn");
+                } else {
+                    log.info("Giữ nguyên trạng thái đơn hàng {} mặc dù thanh toán bị hủy", order.getStatus());
+                }
+
                 log.info("Thanh toán bị hủy cho đơn hàng: {}", order.getOrderNumber());
             } else {
                 // Các mã khác, log để kiểm tra
@@ -386,5 +515,382 @@ public class OrderServiceImpl implements OrderService {
         log.info("Tìm đơn hàng từ {} đến {} cho user {}", startDate, endDate, userId);
         return orderRepository.findByUserIdAndCreatedAtBetween(userId, startDate, endDate, pageable)
                 .map(this::mapToDto);
+    }
+
+    @Override
+    public OrderDto getOrderByIdAndSellerId(Long orderId, String sellerId) {
+        Order order = getOrderOrThrow(orderId);
+        
+        // Kiểm tra xem đơn hàng có chứa sản phẩm của seller không
+        boolean hasAccess = orderRepository.existsByOrderIdAndSellerId(orderId, sellerId);
+        if (!hasAccess) {
+            throw new UnauthorizedAccessException("Seller không có quyền truy cập đơn hàng này");
+        }
+        
+        return mapToDto(order);
+    }
+
+    @Override
+    public Page<OrderDto> getOrdersBySellerId(String sellerId, Pageable pageable) {
+        return orderRepository.findBySellerId(sellerId, pageable)
+                .map(this::mapToDto);
+    }
+
+    @Override
+    public Page<OrderDto> getOrdersBySellerIdAndStatus(String sellerId, OrderStatus status, Pageable pageable) {
+        return orderRepository.findBySellerIdAndStatus(sellerId, status, pageable)
+                .map(this::mapToDto);
+    }
+
+    @Override
+    public Page<OrderDto> getOrdersBySellerIdAndDateRange(String sellerId, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+        return orderRepository.findBySellerIdAndCreatedAtBetween(sellerId, startDate, endDate, pageable)
+                .map(this::mapToDto);
+    }
+
+    @Override
+    public OrderStatisticsDto getSellerOrderStatistics(String sellerId) {
+        // Lấy số lượng đơn hàng theo từng trạng thái
+        long pendingCount = orderRepository.countBySellerIdAndStatus(sellerId, OrderStatus.PENDING);
+        long processingCount = orderRepository.countBySellerIdAndStatus(sellerId, OrderStatus.PROCESSING);
+        long shippedCount = orderRepository.countBySellerIdAndStatus(sellerId, OrderStatus.SHIPPED);
+        long deliveredCount = orderRepository.countBySellerIdAndStatus(sellerId, OrderStatus.DELIVERED);
+        long completedCount = orderRepository.countBySellerIdAndStatus(sellerId, OrderStatus.COMPLETED);
+        long cancelledCount = orderRepository.countBySellerIdAndStatus(sellerId, OrderStatus.CANCELLED);
+        
+        long totalOrders = pendingCount + processingCount + shippedCount + deliveredCount + completedCount + cancelledCount;
+        
+        // Tính tổng doanh thu từ các đơn hàng hoàn thành
+        BigDecimal totalRevenue = calculateTotalRevenueForSeller(sellerId);
+        
+        // Tính trung bình giá trị đơn hàng
+        BigDecimal avgOrderValue = totalOrders > 0 ? totalRevenue.divide(BigDecimal.valueOf(totalOrders), 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        
+        // Tính tỷ lệ hoàn thành và hủy
+        double completionRate = totalOrders > 0 ? (double) completedCount / totalOrders : 0;
+        double cancellationRate = totalOrders > 0 ? (double) cancelledCount / totalOrders : 0;
+        
+        // Thống kê theo thời gian (7 ngày gần nhất)
+        Map<String, Long> orderCountByDay = getSellerOrderCountByDay(sellerId);
+        Map<String, BigDecimal> revenueByDay = getSellerRevenueByDay(sellerId);
+        
+        return OrderStatisticsDto.builder()
+                .totalOrders(totalOrders)
+                .pendingOrders(pendingCount)
+                .processingOrders(processingCount)
+                .shippedOrders(shippedCount)
+                .deliveredOrders(deliveredCount)
+                .completedOrders(completedCount)
+                .cancelledOrders(cancelledCount)
+                .totalRevenue(totalRevenue)
+                .avgOrderValue(avgOrderValue)
+                .completionRate(completionRate)
+                .cancellationRate(cancellationRate)
+                .orderCountByDay(orderCountByDay)
+                .revenueByDay(revenueByDay)
+                .build();
+    }
+
+    @Override
+    public Page<OrderDto> getAllOrders(Pageable pageable) {
+        return orderRepository.findAll(pageable)
+                .map(this::mapToDto);
+    }
+
+    @Override
+    public Page<OrderDto> getOrdersByStatus(OrderStatus status, Pageable pageable) {
+        return orderRepository.findByStatus(status, pageable)
+                .map(this::mapToDto);
+    }
+
+    @Override
+    public Page<OrderDto> getOrdersByDateRange(LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+        return orderRepository.findByCreatedAtBetween(startDate, endDate, pageable)
+                .map(this::mapToDto);
+    }
+
+    @Override
+    public OrderStatisticsDto getAdminOrderStatistics() {
+        // Lấy số lượng đơn hàng theo từng trạng thái
+        long pendingCount = orderRepository.countByStatus(OrderStatus.PENDING);
+        long processingCount = orderRepository.countByStatus(OrderStatus.PROCESSING);
+        long shippedCount = orderRepository.countByStatus(OrderStatus.SHIPPED);
+        long deliveredCount = orderRepository.countByStatus(OrderStatus.DELIVERED);
+        long completedCount = orderRepository.countByStatus(OrderStatus.COMPLETED);
+        long cancelledCount = orderRepository.countByStatus(OrderStatus.CANCELLED);
+        
+        long totalOrders = pendingCount + processingCount + shippedCount + deliveredCount + completedCount + cancelledCount;
+        
+        // Tính tổng doanh thu từ các đơn hàng hoàn thành
+        BigDecimal totalRevenue = calculateTotalRevenue();
+        
+        // Tính trung bình giá trị đơn hàng
+        BigDecimal avgOrderValue = totalOrders > 0 ? totalRevenue.divide(BigDecimal.valueOf(totalOrders), 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        
+        // Tính tỷ lệ hoàn thành và hủy
+        double completionRate = totalOrders > 0 ? (double) completedCount / totalOrders : 0;
+        double cancellationRate = totalOrders > 0 ? (double) cancelledCount / totalOrders : 0;
+        
+        // Thống kê theo thời gian (7 ngày gần nhất)
+        Map<String, Long> orderCountByDay = getOrderCountByDay();
+        Map<String, BigDecimal> revenueByDay = getRevenueByDay();
+        
+        return OrderStatisticsDto.builder()
+                .totalOrders(totalOrders)
+                .pendingOrders(pendingCount)
+                .processingOrders(processingCount)
+                .shippedOrders(shippedCount)
+                .deliveredOrders(deliveredCount)
+                .completedOrders(completedCount)
+                .cancelledOrders(cancelledCount)
+                .totalRevenue(totalRevenue)
+                .avgOrderValue(avgOrderValue)
+                .completionRate(completionRate)
+                .cancellationRate(cancellationRate)
+                .orderCountByDay(orderCountByDay)
+                .revenueByDay(revenueByDay)
+                .build();
+    }
+
+    @Override
+    public Map<String, Object> getOrderStatistics() {
+        Map<String, Object> statistics = new HashMap<>();
+        
+        // Đếm số lượng đơn hàng theo trạng thái
+        for (OrderStatus status : OrderStatus.values()) {
+            long count = orderRepository.countByStatus(status);
+            statistics.put(status.name().toLowerCase() + "Orders", count);
+        }
+        
+        // Tổng số đơn hàng
+        long totalOrders = orderRepository.count();
+        statistics.put("totalOrders", totalOrders);
+        
+        // Tổng doanh thu
+        BigDecimal totalRevenue = calculateTotalRevenue();
+        statistics.put("totalRevenue", totalRevenue);
+        
+        return statistics;
+    }
+
+    @Override
+    public Map<String, Object> getDashboardStatistics(LocalDateTime startDate, LocalDateTime endDate) {
+
+        // Thêm thống kê cơ bản
+        Map<String, Object> statistics = new HashMap<>(getOrderStatistics());
+        
+        // Thêm dữ liệu thống kê theo thời gian
+        Map<String, Long> orderCountByDay = getOrderCountByTimeRange(startDate, endDate);
+        Map<String, BigDecimal> revenueByDay = getRevenueByTimeRange(startDate, endDate);
+        
+        statistics.put("orderCountByDay", orderCountByDay);
+        statistics.put("revenueByDay", revenueByDay);
+        
+        return statistics;
+    }
+
+    // Helper methods
+    private BigDecimal calculateTotalRevenue() {
+        List<Order> completedOrders = orderRepository.findByStatus(OrderStatus.COMPLETED);
+        return completedOrders.stream()
+                .map(Order::getTotalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateTotalRevenueForSeller(String sellerId) {
+        // Cần lấy các đơn hàng có chứa sản phẩm của seller và đã hoàn thành
+        List<Order> completedOrders = orderRepository.findByStatus(OrderStatus.COMPLETED);
+        
+        return completedOrders.stream()
+                .filter(order -> order.getItems().stream()
+                        .anyMatch(item -> sellerId.equals(item.getSellerId())))
+                .flatMap(order -> order.getItems().stream()
+                        .filter(item -> sellerId.equals(item.getSellerId()))
+                        .map(OrderItem::getSubtotal))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private Map<String, Long> getOrderCountByDay() {
+        // Lấy 7 ngày gần nhất
+        LocalDate today = LocalDate.now();
+        Map<String, Long> result = new LinkedHashMap<>();
+        
+        for (int i = 6; i >= 0; i--) {
+            LocalDate date = today.minusDays(i);
+            LocalDateTime startOfDay = date.atStartOfDay();
+            LocalDateTime endOfDay = date.atTime(LocalTime.MAX);
+            
+            long count = orderRepository.findByCreatedAtBetween(startOfDay, endOfDay, Pageable.unpaged()).getTotalElements();
+            result.put(date.format(DateTimeFormatter.ISO_DATE), count);
+        }
+        
+        return result;
+    }
+
+    private Map<String, BigDecimal> getRevenueByDay() {
+        // Lấy 7 ngày gần nhất
+        LocalDate today = LocalDate.now();
+        Map<String, BigDecimal> result = new LinkedHashMap<>();
+        
+        for (int i = 6; i >= 0; i--) {
+            LocalDate date = today.minusDays(i);
+            LocalDateTime startOfDay = date.atStartOfDay();
+            LocalDateTime endOfDay = date.atTime(LocalTime.MAX);
+            
+            Page<Order> ordersOfDay = orderRepository.findByCreatedAtBetween(startOfDay, endOfDay, Pageable.unpaged());
+            BigDecimal revenue = ordersOfDay.stream()
+                    .map(Order::getTotalAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            result.put(date.format(DateTimeFormatter.ISO_DATE), revenue);
+        }
+        
+        return result;
+    }
+
+    private Map<String, Long> getSellerOrderCountByDay(String sellerId) {
+        // Lấy 7 ngày gần nhất
+        LocalDate today = LocalDate.now();
+        Map<String, Long> result = new LinkedHashMap<>();
+        
+        for (int i = 6; i >= 0; i--) {
+            LocalDate date = today.minusDays(i);
+            LocalDateTime startOfDay = date.atStartOfDay();
+            LocalDateTime endOfDay = date.atTime(LocalTime.MAX);
+            
+            long count = orderRepository.findBySellerIdAndCreatedAtBetween(
+                    sellerId, startOfDay, endOfDay, Pageable.unpaged()).getTotalElements();
+            result.put(date.format(DateTimeFormatter.ISO_DATE), count);
+        }
+        
+        return result;
+    }
+
+    private Map<String, BigDecimal> getSellerRevenueByDay(String sellerId) {
+        // Lấy 7 ngày gần nhất
+        LocalDate today = LocalDate.now();
+        Map<String, BigDecimal> result = new LinkedHashMap<>();
+        
+        for (int i = 6; i >= 0; i--) {
+            LocalDate date = today.minusDays(i);
+            LocalDateTime startOfDay = date.atStartOfDay();
+            LocalDateTime endOfDay = date.atTime(LocalTime.MAX);
+            
+            Page<Order> ordersOfDay = orderRepository.findBySellerIdAndCreatedAtBetween(
+                    sellerId, startOfDay, endOfDay, Pageable.unpaged());
+            
+            BigDecimal revenue = ordersOfDay.stream()
+                    .flatMap(order -> order.getItems().stream()
+                            .filter(item -> sellerId.equals(item.getSellerId()))
+                            .map(OrderItem::getSubtotal))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            result.put(date.format(DateTimeFormatter.ISO_DATE), revenue);
+        }
+        
+        return result;
+    }
+
+    private Map<String, Long> getOrderCountByTimeRange(LocalDateTime startDate, LocalDateTime endDate) {
+        Map<String, Long> result = new LinkedHashMap<>();
+        
+        // Xác định khoảng thời gian
+        long daysBetween = ChronoUnit.DAYS.between(startDate.toLocalDate(), endDate.toLocalDate());
+        
+        // Nếu khoảng thời gian quá dài, nhóm theo tuần hoặc tháng
+        if (daysBetween > 30) {
+            // Nhóm theo tháng
+            YearMonth start = YearMonth.from(startDate);
+            YearMonth end = YearMonth.from(endDate);
+            
+            while (!start.isAfter(end)) {
+                LocalDateTime monthStart = start.atDay(1).atStartOfDay();
+                LocalDateTime monthEnd = start.atEndOfMonth().atTime(LocalTime.MAX);
+                
+                long count = orderRepository.findByCreatedAtBetween(
+                        monthStart, monthEnd, Pageable.unpaged()).getTotalElements();
+                result.put(start.format(DateTimeFormatter.ofPattern("yyyy-MM")), count);
+                
+                start = start.plusMonths(1);
+            }
+        } else {
+            // Nhóm theo ngày
+            LocalDate start = startDate.toLocalDate();
+            LocalDate endLocalDate = endDate.toLocalDate();
+            
+            while (!start.isAfter(endLocalDate)) {
+                LocalDateTime dayStart = start.atStartOfDay();
+                LocalDateTime dayEnd = start.atTime(LocalTime.MAX);
+                
+                long count = orderRepository.findByCreatedAtBetween(
+                        dayStart, dayEnd, Pageable.unpaged()).getTotalElements();
+                result.put(start.format(DateTimeFormatter.ISO_DATE), count);
+                
+                start = start.plusDays(1);
+            }
+        }
+        
+        return result;
+    }
+
+    private Map<String, BigDecimal> getRevenueByTimeRange(LocalDateTime startDate, LocalDateTime endDate) {
+        Map<String, BigDecimal> result = new LinkedHashMap<>();
+        
+        // Xác định khoảng thời gian
+        long daysBetween = ChronoUnit.DAYS.between(startDate.toLocalDate(), endDate.toLocalDate());
+        
+        // Nếu khoảng thời gian quá dài, nhóm theo tuần hoặc tháng
+        if (daysBetween > 30) {
+            // Nhóm theo tháng
+            YearMonth start = YearMonth.from(startDate);
+            YearMonth end = YearMonth.from(endDate);
+            
+            while (!start.isAfter(end)) {
+                LocalDateTime monthStart = start.atDay(1).atStartOfDay();
+                LocalDateTime monthEnd = start.atEndOfMonth().atTime(LocalTime.MAX);
+                
+                Page<Order> ordersOfMonth = orderRepository.findByCreatedAtBetween(
+                        monthStart, monthEnd, Pageable.unpaged());
+                BigDecimal revenue = ordersOfMonth.stream()
+                        .map(Order::getTotalAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+                result.put(start.format(DateTimeFormatter.ofPattern("yyyy-MM")), revenue);
+                
+                start = start.plusMonths(1);
+            }
+        } else {
+            // Nhóm theo ngày
+            LocalDate start = startDate.toLocalDate();
+            LocalDate endLocalDate = endDate.toLocalDate();
+            
+            while (!start.isAfter(endLocalDate)) {
+                LocalDateTime dayStart = start.atStartOfDay();
+                LocalDateTime dayEnd = start.atTime(LocalTime.MAX);
+                
+                Page<Order> ordersOfDay = orderRepository.findByCreatedAtBetween(
+                        dayStart, dayEnd, Pageable.unpaged());
+                BigDecimal revenue = ordersOfDay.stream()
+                        .map(Order::getTotalAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+                result.put(start.format(DateTimeFormatter.ISO_DATE), revenue);
+                
+                start = start.plusDays(1);
+            }
+        }
+        
+        return result;
+    }
+
+    /**
+     * Tìm đơn hàng theo ID, ném ngoại lệ nếu không tìm thấy
+     * @param id ID của đơn hàng
+     * @return Đơn hàng tìm thấy
+     * @throws OrderNotFoundException nếu không tìm thấy đơn hàng
+     */
+    private Order getOrderOrThrow(Long id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException("Không tìm thấy đơn hàng với ID: " + id));
     }
 }

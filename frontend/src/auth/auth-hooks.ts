@@ -50,6 +50,9 @@ export const useAuth = () => {
     try {
       const token = await getAccessTokenSilently();
       
+      // Lưu token vào localStorage để các request có thể sử dụng
+      localStorage.setItem('auth_token', token);
+      
       // Loại bỏ việc log token ra console mỗi lần gọi
       // console.log('JWT Token:', token);
       // console.log('%c----- TOKEN FOR POSTMAN -----', 'background: #222; color: #bada55; font-size: 16px');
@@ -64,7 +67,8 @@ export const useAuth = () => {
       // Thay vào đó, trả về null và để component xử lý
       const error = err as Error;
       if (error.message && error.message.includes('Missing Refresh Token')) {
-        // Chỉ xóa cache Auth0 nhưng không reload trang
+        // Xóa tokens từ localStorage
+        localStorage.removeItem('auth_token');
         localStorage.removeItem('auth0.is.authenticated');
         
         // Log thông báo lỗi

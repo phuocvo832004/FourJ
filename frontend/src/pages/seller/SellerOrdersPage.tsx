@@ -1,19 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
-
-type Order = {
-  id: string;
-  orderNumber: string;
-  customerName: string;
-  total: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-  createdAt: string;
-  items: number;
-};
+import { OrderDto } from '../../api/orderApi';
+import { useSellerOrders } from '../../hooks/useOrder';
 
 type FilterOptions = {
   status: string;
@@ -23,11 +13,12 @@ type FilterOptions = {
 
 const statusOptions = [
   { value: '', label: 'Tất cả trạng thái' },
-  { value: 'pending', label: 'Chờ xác nhận' },
-  { value: 'processing', label: 'Đang xử lý' },
-  { value: 'shipped', label: 'Đã giao hàng' },
-  { value: 'delivered', label: 'Đã nhận hàng' },
-  { value: 'cancelled', label: 'Đã hủy' },
+  { value: 'PENDING', label: 'Chờ xác nhận' },
+  { value: 'PROCESSING', label: 'Đang xử lý' },
+  { value: 'SHIPPED', label: 'Đã giao hàng' },
+  { value: 'DELIVERED', label: 'Đã nhận hàng' },
+  { value: 'COMPLETED', label: 'Hoàn thành' },
+  { value: 'CANCELLED', label: 'Đã hủy' },
 ];
 
 const dateRangeOptions = [
@@ -40,74 +31,66 @@ const dateRangeOptions = [
 
 const SellerOrdersPage: React.FC = () => {
   const navigate = useNavigate();
+  const [currentPage, setCurrentPage] = useState(0);
   const [filters, setFilters] = useState<FilterOptions>({
     status: '',
     dateRange: 'all',
     search: '',
   });
   
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ['sellerOrders', filters],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      
-      if (filters.status) {
-        params.append('status', filters.status);
-      }
-      
-      if (filters.dateRange && filters.dateRange !== 'all') {
-        params.append('dateRange', filters.dateRange);
-      }
-      
-      if (filters.search) {
-        params.append('search', filters.search);
-      }
-      
-      const response = await axios.get(`/api/seller/orders?${params.toString()}`);
-      return response.data;
-    },
-  });
+  const { orders, loading: isLoading, error, totalPages } = useSellerOrders(
+    currentPage,
+    10,
+    filters.status
+  );
   
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setFilters(prev => ({ ...prev, status: e.target.value }));
+    setCurrentPage(0); // Reset to first page when changing filter
   };
   
   const handleDateRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setFilters(prev => ({ ...prev, dateRange: e.target.value }));
+    setCurrentPage(0);
   };
   
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFilters(prev => ({ ...prev, search: e.target.value }));
+    setCurrentPage(0);
   };
   
-  const getStatusBadgeColor = (status: Order['status']) => {
+  const getStatusBadgeColor = (status: string) => {
     switch (status) {
-      case 'pending':
+      case 'PENDING':
         return 'bg-yellow-100 text-yellow-800';
-      case 'processing':
+      case 'PROCESSING':
         return 'bg-blue-100 text-blue-800';
-      case 'shipped':
+      case 'SHIPPED':
         return 'bg-purple-100 text-purple-800';
-      case 'delivered':
+      case 'DELIVERED':
         return 'bg-green-100 text-green-800';
-      case 'cancelled':
+      case 'COMPLETED':
+        return 'bg-green-100 text-green-800';
+      case 'CANCELLED':
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
   };
   
-  const getStatusText = (status: Order['status']) => {
+  const getStatusText = (status: string) => {
     switch (status) {
-      case 'pending':
+      case 'PENDING':
         return 'Chờ xác nhận';
-      case 'processing':
+      case 'PROCESSING':
         return 'Đang xử lý';
-      case 'shipped':
+      case 'SHIPPED':
         return 'Đã giao hàng';
-      case 'delivered':
+      case 'DELIVERED':
         return 'Đã nhận hàng';
-      case 'cancelled':
+      case 'COMPLETED':
+        return 'Hoàn thành';
+      case 'CANCELLED':
         return 'Đã hủy';
       default:
         return status;
@@ -178,6 +161,12 @@ const SellerOrdersPage: React.FC = () => {
           </div>
         </div>
         
+        {error && (
+          <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
+            <p>{error}</p>
+          </div>
+        )}
+        
         {isLoading ? (
           <div className="p-6">
             <div className="animate-pulse space-y-4">
@@ -197,9 +186,6 @@ const SellerOrdersPage: React.FC = () => {
                         Mã đơn hàng
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Khách hàng
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Ngày đặt
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -212,31 +198,46 @@ const SellerOrdersPage: React.FC = () => {
                         Trạng thái
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Thanh toán
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Thao tác
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {orders.map((order: Order) => (
+                    {orders.map((order: OrderDto) => (
                       <tr key={order.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {order.orderNumber}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {order.customerName}
+                          #{order.orderNumber}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {formatDate(order.createdAt)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {order.items} sản phẩm
+                          {order.items.length} sản phẩm
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {formatCurrency(order.total)}
+                          {formatCurrency(order.totalAmount)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(order.status)}`}>
                             {getStatusText(order.status)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            order.paymentInfo.paymentStatus === 'COMPLETED' 
+                              ? 'bg-green-100 text-green-800' 
+                              : order.paymentInfo.paymentStatus === 'CANCELLED'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {order.paymentInfo.paymentStatus === 'COMPLETED' 
+                              ? 'Đã thanh toán' 
+                              : order.paymentInfo.paymentStatus === 'CANCELLED'
+                              ? 'Đã hủy'
+                              : 'Chờ thanh toán'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -253,11 +254,92 @@ const SellerOrdersPage: React.FC = () => {
                 </table>
               </div>
             ) : (
-              <div className="p-6 text-center">
-                <p className="text-gray-500">Không có đơn hàng nào</p>
+              <div className="p-6 text-center text-gray-500">
+                Không tìm thấy đơn hàng nào
               </div>
             )}
           </>
+        )}
+        
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 0))}
+                disabled={currentPage === 0}
+                className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
+                  currentPage === 0
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Trước
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages - 1))}
+                disabled={currentPage === totalPages - 1}
+                className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
+                  currentPage === totalPages - 1
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Sau
+              </button>
+            </div>
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Hiển thị <span className="font-medium">{orders.length}</span> trong tổng số{' '}
+                  <span className="font-medium">{totalPages * 10}</span> kết quả
+                </p>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 0))}
+                    disabled={currentPage === 0}
+                    className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium ${
+                      currentPage === 0 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="sr-only">Trước</span>
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  
+                  {[...Array(totalPages)].map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentPage(i)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                        currentPage === i
+                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages - 1))}
+                    disabled={currentPage === totalPages - 1}
+                    className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium ${
+                      currentPage === totalPages - 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="sr-only">Sau</span>
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

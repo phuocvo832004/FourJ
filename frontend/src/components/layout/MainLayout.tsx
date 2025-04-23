@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-hooks';
 import { useCart } from '../../hooks/useCart';
@@ -10,6 +10,7 @@ const MainLayout: React.FC = () => {
   const { items, toggleCart, isOpen, fetchCart, removeItem: removeCartItem, updateQuantity: updateCartQuantity } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const prevItemsCountRef = useRef(0);
 
   useEffect(() => {
     // Thêm điều kiện kiểm tra để tránh gọi liên tục
@@ -25,6 +26,22 @@ const MainLayout: React.FC = () => {
       }
     }
   }, [isAuthenticated, isLoading, fetchCart]);
+
+  // Thêm useEffect để tự động hiển thị mini cart khi có sản phẩm mới được thêm vào
+  useEffect(() => {
+    const currentItemsCount = items.reduce((total, item) => total + item.quantity, 0);
+    
+    // Nếu số lượng sản phẩm tăng lên (có sản phẩm mới được thêm vào)
+    if (currentItemsCount > prevItemsCountRef.current && currentItemsCount > 0) {
+      // Mở mini cart
+      if (!isOpen) {
+        toggleCart();
+      }
+    }
+    
+    // Cập nhật ref cho lần render tiếp theo
+    prevItemsCountRef.current = currentItemsCount;
+  }, [items, isOpen, toggleCart]);
 
   const cartItemCount = items.reduce((total, item) => total + item.quantity, 0);
 

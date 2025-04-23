@@ -16,6 +16,10 @@ public class OrderItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @ManyToOne
+    @JoinColumn(name = "order_id", nullable = false)
+    private Order order;
+
     @Column(nullable = false)
     private Long productId;
 
@@ -25,15 +29,14 @@ public class OrderItem {
     private String productImage;
 
     @Column(nullable = false)
-    private BigDecimal subtotal;
+    private Integer quantity;
 
     @Column(nullable = false)
     private BigDecimal price;
 
     @Column(nullable = false)
-    private int quantity;
+    private BigDecimal subtotal;
 
-    @ManyToOne
-    @JoinColumn(name = "order_id", nullable = false)
-    private Order order;
+    @Column(name = "seller_id")
+    private String sellerId;
 }

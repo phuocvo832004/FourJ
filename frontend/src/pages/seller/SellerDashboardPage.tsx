@@ -4,8 +4,19 @@ import { motion } from 'framer-motion';
 import { Seller, Product, Order } from '../../types';
 import DashboardCard from '../../components/ui/DashboardCard';
 import StatCard from '../../components/ui/StatCard';
+import { useSellerOrderStatistics } from '../../hooks/useOrder';
+import { format } from 'date-fns';
+import { vi } from 'date-fns/locale';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
+import { Line, Pie } from 'react-chartjs-2';
+
+// Register ChartJS components
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 
 const SellerDashboardPage: React.FC = () => {
+  const { statistics, loading: statsLoading, error: statsError } = useSellerOrderStatistics();
+  const [sellerLoading, setSellerLoading] = useState(false);
+  const [sellerError, setSellerError] = useState<string | null>(null);
   const [seller, setSeller] = useState<Seller | null>(null);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [topProducts, setTopProducts] = useState<Product[]>([]);
@@ -15,13 +26,11 @@ const SellerDashboardPage: React.FC = () => {
     totalProducts: 0,
     activeProducts: 0,
   });
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSellerData = async () => {
       try {
-        setLoading(true);
+        setSellerLoading(true);
         
         // Fetch seller profile
         const profileResponse = await fetch('/api/seller/profile');
@@ -55,10 +64,10 @@ const SellerDashboardPage: React.FC = () => {
         const statsData = await statsResponse.json();
         setStats(statsData);
         
-        setError(null);
+        setSellerError(null);
       } catch (err) {
         console.error('Error fetching seller data:', err);
-        setError('Không thể tải dữ liệu người bán. Vui lòng thử lại sau.');
+        setSellerError('Không thể tải dữ liệu người bán. Vui lòng thử lại sau.');
         
         // Set demo data for preview purposes
         setSeller({
@@ -89,7 +98,7 @@ const SellerDashboardPage: React.FC = () => {
                 image: 'https://via.placeholder.com/100',
               }
             ],
-            total: 500000,
+            totalAmount: 500000,
             status: 'pending',
             createdAt: '2023-05-15T10:30:00Z',
             shippingAddress: 'Hà Nội, Việt Nam',
@@ -111,7 +120,7 @@ const SellerDashboardPage: React.FC = () => {
                 image: 'https://via.placeholder.com/100',
               }
             ],
-            total: 350000,
+            totalAmount: 350000,
             status: 'processing',
             createdAt: '2023-05-14T14:20:00Z',
             shippingAddress: 'TP Hồ Chí Minh, Việt Nam',
@@ -150,12 +159,15 @@ const SellerDashboardPage: React.FC = () => {
           activeProducts: 20,
         });
       } finally {
-        setLoading(false);
+        setSellerLoading(false);
       }
     };
 
     fetchSellerData();
   }, []);
+
+  const loading = statsLoading || sellerLoading;
+  const error = statsError || sellerError;
 
   if (loading) {
     return (
@@ -172,11 +184,7 @@ const SellerDashboardPage: React.FC = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    return format(new Date(dateString), 'dd/MM/yyyy', { locale: vi });
   };
 
   const getStatusBadgeClass = (status: string) => {
@@ -211,6 +219,83 @@ const SellerDashboardPage: React.FC = () => {
       default:
         return status;
     }
+  };
+
+  // Chart data for orders by day
+  const orderLineChartData = {
+    labels: statistics ? Object.keys(statistics.orderCountByDay).map(date => formatDate(date)) : [],
+    datasets: [
+      {
+        label: 'Số đơn hàng',
+        data: statistics ? Object.values(statistics.orderCountByDay) : [],
+        borderColor: 'rgb(59, 130, 246)',
+        backgroundColor: 'rgba(59, 130, 246, 0.5)',
+        tension: 0.3,
+      },
+    ],
+  };
+
+  // Chart data for revenue by day
+  const revenueLineChartData = {
+    labels: statistics ? Object.keys(statistics.revenueByDay).map(date => formatDate(date)) : [],
+    datasets: [
+      {
+        label: 'Doanh thu (VND)',
+        data: statistics ? Object.values(statistics.revenueByDay) : [],
+        borderColor: 'rgb(16, 185, 129)',
+        backgroundColor: 'rgba(16, 185, 129, 0.5)',
+        tension: 0.3,
+      },
+    ],
+  };
+
+  // Chart data for order status distribution
+  const orderStatusChartData = {
+    labels: ['Chờ xác nhận', 'Đang xử lý', 'Đang giao hàng', 'Đã giao hàng', 'Hoàn thành', 'Đã hủy'],
+    datasets: [
+      {
+        data: statistics ? [
+          statistics.pendingOrders,
+          statistics.processingOrders,
+          statistics.shippedOrders,
+          statistics.deliveredOrders,
+          statistics.completedOrders,
+          statistics.cancelledOrders
+        ] : [],
+        backgroundColor: [
+          'rgba(255, 206, 86, 0.6)',
+          'rgba(54, 162, 235, 0.6)',
+          'rgba(153, 102, 255, 0.6)',
+          'rgba(75, 192, 192, 0.6)',
+          'rgba(16, 185, 129, 0.6)',
+          'rgba(255, 99, 132, 0.6)',
+        ],
+        borderColor: [
+          'rgba(255, 206, 86, 1)',
+          'rgba(54, 162, 235, 1)',
+          'rgba(153, 102, 255, 1)',
+          'rgba(75, 192, 192, 1)',
+          'rgba(16, 185, 129, 1)',
+          'rgba(255, 99, 132, 1)',
+        ],
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  // Chart options
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+      },
+    },
   };
 
   return (
@@ -350,7 +435,7 @@ const SellerDashboardPage: React.FC = () => {
                         <tr key={order.id} className="hover:bg-gray-50 transition duration-150">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{order.id}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(order.createdAt)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(order.total)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(order.totalAmount)}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(order.status)}`}>
                               {getStatusText(order.status)}
@@ -424,6 +509,112 @@ const SellerDashboardPage: React.FC = () => {
           </div>
         </motion.div>
       )}
+
+      {/* Charts */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8"
+      >
+        <div className="lg:col-span-2">
+          <DashboardCard title="Đơn hàng theo ngày">
+            {statistics && <Line data={orderLineChartData} options={chartOptions} />}
+          </DashboardCard>
+        </div>
+        <div>
+          <DashboardCard title="Phân bố trạng thái">
+            {statistics && <Pie data={orderStatusChartData} />}
+          </DashboardCard>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8"
+      >
+        <div className="lg:col-span-2">
+          <DashboardCard title="Doanh thu theo ngày">
+            {statistics && <Line data={revenueLineChartData} options={chartOptions} />}
+          </DashboardCard>
+        </div>
+        <div>
+          <DashboardCard title="Sản phẩm nổi bật">
+            <div className="space-y-4">
+              {topProducts.map((product) => (
+                <div key={product.id} className="flex items-center p-3 border rounded-lg hover:bg-blue-50 transition">
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="w-12 h-12 object-cover rounded-md"
+                  />
+                  <div className="ml-3 flex-1">
+                    <h4 className="font-medium text-gray-800">{product.name}</h4>
+                    <p className="text-sm text-gray-500">{formatCurrency(product.price)}</p>
+                  </div>
+                </div>
+              ))}
+              <Link
+                to="/seller/products"
+                className="block text-center text-sm text-blue-600 hover:text-blue-800 font-medium mt-2"
+              >
+                Xem tất cả sản phẩm
+              </Link>
+            </div>
+          </DashboardCard>
+        </div>
+      </motion.div>
+
+      {/* Quick Actions */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+      >
+        <DashboardCard title="Truy cập nhanh">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <Link to="/seller/products/add" className="flex flex-col items-center p-4 border rounded-lg hover:bg-blue-50 transition">
+              <svg className="w-8 h-8 text-blue-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              <span className="text-sm font-medium text-gray-700">Thêm sản phẩm</span>
+            </Link>
+            <Link to="/seller/orders" className="flex flex-col items-center p-4 border rounded-lg hover:bg-blue-50 transition">
+              <svg className="w-8 h-8 text-green-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <span className="text-sm font-medium text-gray-700">Quản lý đơn hàng</span>
+            </Link>
+            <Link to="/seller/products" className="flex flex-col items-center p-4 border rounded-lg hover:bg-blue-50 transition">
+              <svg className="w-8 h-8 text-indigo-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span className="text-sm font-medium text-gray-700">Cập nhật giá</span>
+            </Link>
+            <Link to="/seller/analytics" className="flex flex-col items-center p-4 border rounded-lg hover:bg-blue-50 transition">
+              <svg className="w-8 h-8 text-purple-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <span className="text-sm font-medium text-gray-700">Phân tích bán hàng</span>
+            </Link>
+            <Link to="/seller/settings" className="flex flex-col items-center p-4 border rounded-lg hover:bg-blue-50 transition">
+              <svg className="w-8 h-8 text-gray-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="text-sm font-medium text-gray-700">Cài đặt cửa hàng</span>
+            </Link>
+            <Link to="/help" className="flex flex-col items-center p-4 border rounded-lg hover:bg-blue-50 transition">
+              <svg className="w-8 h-8 text-red-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              <span className="text-sm font-medium text-gray-700">Trợ giúp</span>
+            </Link>
+          </div>
+        </DashboardCard>
+      </motion.div>
     </div>
   );
 };

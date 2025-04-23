@@ -10,9 +10,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class ProductDto {
     private Long id;
     private String name;
@@ -22,8 +22,9 @@ public class ProductDto {
     private String imageUrl;
     private Long categoryId;
     private String categoryName;
-    private List<ProductAttributeDto> attributes;
     private boolean active;
+    private String sellerId;
+    private List<ProductAttributeDto> attributes;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

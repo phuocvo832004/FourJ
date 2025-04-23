@@ -1,6 +1,6 @@
 // Tạo file mới: src/components/common/JwtViewer.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 
 const JwtViewer: React.FC = () => {
@@ -10,13 +10,7 @@ const JwtViewer: React.FC = () => {
   const [showLogs, setShowLogs] = useState(false);
   const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
 
-  useEffect(() => {
-    if (isAuthenticated && !isLoading) {
-      fetchToken();
-    }
-  }, [isAuthenticated, isLoading]);
-
-  const fetchToken = async () => {
+  const fetchToken = useCallback(async () => {
     try {
       const accessToken = await getAccessTokenSilently();
       setToken(accessToken);
@@ -27,7 +21,13 @@ const JwtViewer: React.FC = () => {
       console.error('Error fetching token:', err);
       setError('Không thể lấy token. Hãy thử đăng nhập lại.');
     }
-  };
+  }, [getAccessTokenSilently]);
+
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      fetchToken();
+    }
+  }, [isAuthenticated, isLoading, fetchToken]);
 
   const copyToClipboard = () => {
     if (!token) return;

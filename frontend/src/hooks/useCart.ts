@@ -40,8 +40,11 @@ export const useCart = () => {
   }, [auth]);
 
   // Phương thức mới để lấy giỏ hàng từ API
-  const fetchCart = useCallback(async () => {
-    if (fetchingRef.current) {
+  const fetchCart = useCallback(async (options?: { force?: boolean }) => {
+    const force = options?.force || false;
+    
+    // Bỏ qua kiểm tra fetchingRef nếu force=true
+    if (fetchingRef.current && !force) {
       return { items: [] };
     }
 
@@ -51,6 +54,9 @@ export const useCart = () => {
 
     return new Promise<{ items: CartItem[] }>(resolve => {
       fetchingRef.current = true;
+      
+      // Nếu force=true thì giảm delay xuống minimum
+      const delay = force ? 0 : 50;
       
       fetchTimeoutRef.current = setTimeout(async () => {
         try {
@@ -67,16 +73,23 @@ export const useCart = () => {
             return;
           }
 
-          const response = await apiClient.get('/cart', {
+          // Thêm timestamp vào URL để tránh caching ở client hoặc CDN
+          const timestamp = Date.now();
+          const response = await apiClient.get(`/cart?t=${timestamp}`, {
             headers: {
-              'Authorization': `Bearer ${token}`
+              'Authorization': `Bearer ${token}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
             }
           });
           
           const cartData = response.data;
+          // Đảm bảo mỗi item có cartItemId và id phù hợp
           const itemsWithIds = (cartData.items || []).map((item: CartItem & {id?: string}) => ({
             ...item,
-            cartItemId: String(item.id)
+            cartItemId: String(item.id),
+            id: String(item.productId || item.id)
           }));
           
           dispatch(setCartItems(itemsWithIds));
@@ -87,16 +100,18 @@ export const useCart = () => {
           fetchingRef.current = false;
           resolve({ items: [] });
         }
-      }, 100);
+      }, delay);
     });
   }, [dispatch, getToken, auth.isAuthenticated]);
 
   const addToCart = useCallback(async (item: CartItem) => {
     try {
+      // Cập nhật state local ngay lập tức để UX mượt mà hơn
+      dispatch(addItem(item));
+      
       const token = await getToken();
       if (!token) {
-        // Nếu không có token, chỉ cập nhật state cục bộ
-        dispatch(addItem(item));
+        // Nếu không có token, đã cập nhật state cục bộ ở trên
         return;
       }
 
@@ -112,13 +127,21 @@ export const useCart = () => {
       const updatedCart = response.data;
       // Cập nhật state Redux từ API response
       dispatch(setCartItems(updatedCart.items || []));
+      
+      // Luôn fetch lại dữ liệu mới nhất sau khi thêm sản phẩm
+      // để đảm bảo đồng bộ giữa các trang
+      setTimeout(() => {
+        fetchCart({ force: true }).catch(err => {
+          console.error('Failed to refresh cart after adding item:', err);
+        });
+      }, 300);
+      
       return updatedCart;
     } catch (error) {
       console.error('Failed to add item to cart:', error);
-      // Fallback: cập nhật state cục bộ
-      dispatch(addItem(item));
+      // Không cần fallback vì đã cập nhật state ở đầu hàm
     }
-  }, [dispatch, getToken]);
+  }, [dispatch, getToken, fetchCart]);
 
   const removeFromCart = useCallback(async (id: string) => {
     try {

@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import  { memo } from 'react';
 import { ShieldCheckIcon } from '@heroicons/react/24/outline';
 
 interface UserRoles {

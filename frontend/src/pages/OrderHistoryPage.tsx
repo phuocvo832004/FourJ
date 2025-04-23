@@ -1,130 +1,36 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-hooks';
 import ErrorNotification from '../components/ErrorNotification';
-import apiClient from '../api/apiClient';
 import { formatDateTime } from '../utils/formatters';
-
-interface OrderItem {
-  id: string;
-  productId: string;
-  name: string;
-  price: number;
-  quantity: number;
-  image: string;
-}
-
-interface OrderResponse {
-  id: string;
-  orderNumber: string;
-  items: OrderItem[];
-  total: number;
-  status: string;
-  createdAt: string;
-  shippingAddress: string;
-  paymentMethod: string;
-  notes?: string;
-}
+import { useUserOrders } from '../hooks/useOrder';
 
 const OrderHistoryPage: React.FC = () => {
-  const { user, isAuthenticated, isLoading, getToken } = useAuth();
-  const [orders, setOrders] = useState<OrderResponse[]>([]);
-  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const navigate = useNavigate();
+  const { isAuthenticated, isLoading, getToken } = useAuth();
+  const { orders, loading: isLoadingOrders, error, refetch } = useUserOrders();
 
-  const fetchOrders = useCallback(async () => {
-    if (!isAuthenticated || !user) return;
-    
-    // Kiểm tra xem cache đã bị xóa hay chưa
-    const cacheWasCleared = !sessionStorage.getItem('order_history_cache');
-    
-    // Nếu đã khởi tạo và cache chưa bị xóa thì không cần fetch lại
-    if (isInitialized && !cacheWasCleared) return;
-    
-    setIsLoadingOrders(true);
-    setError(null);
-    
-    try {
-      const token = await getToken();
-      if (!token) {
-        throw new Error('Không có token xác thực');
-      }
-      
-      const response = await apiClient.get(`/orders/my-orders`, {
-        params: {
-          page: currentPage - 1,
-          size: 10
-        },
-        headers: {
-          'Authorization': `Bearer ${token}`
+  // Lấy token và lưu vào localStorage trước khi tải đơn hàng
+  useEffect(() => {
+    const fetchToken = async () => {
+      if (isAuthenticated && !isLoading) {
+        const token = await getToken();
+        if (token) {
+          console.log('Token đã được lưu vào localStorage, độ dài:', token.length);
+        } else {
+          console.warn('Không thể lấy token từ Auth0');
         }
-      });
-      
-      const ordersData = response.data.content || [];
-      setOrders(ordersData);
-      setTotalPages(response.data.totalPages || 1);
-      setIsInitialized(true);
-      
-      // Đánh dấu cache đã được làm mới
-      sessionStorage.setItem('order_history_cache', 'true');
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-      setError(error instanceof Error ? error.message : 'Không thể tải lịch sử đơn hàng. Vui lòng thử lại sau.');
-      setOrders([]);
-    } finally {
-      setIsLoadingOrders(false);
-    }
-  }, [isAuthenticated, user, currentPage, getToken, isInitialized]);
-
-  const handleChangePage = (page: number) => {
-    if (page !== currentPage) {
-      setCurrentPage(page);
-      setIsInitialized(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
-
-  useEffect(() => {
-    const handleStorageChange = () => {
-      if (!sessionStorage.getItem('order_history_cache')) {
-        setIsInitialized(false);
       }
     };
-    
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
 
-  const handleReorder = async (orderId: string) => {
-    try {
-      setIsLoadingOrders(true);
-      const token = await getToken();
-      
-      await apiClient.post(`/orders/${orderId}/reorder`, {}, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      navigate('/cart');
-    } catch (error) {
-      console.error('Error reordering:', error);
-      setError('Không thể tạo lại đơn hàng. Vui lòng thử lại sau.');
-    } finally {
-      setIsLoadingOrders(false);
+    fetchToken();
+  }, [isAuthenticated, isLoading, getToken]);
+
+  const handleRetry = async () => {
+    // Lấy lại token trước khi thử lại
+    if (isAuthenticated) {
+      await getToken();
     }
-  };
-
-  const handleRetry = () => {
-    setIsInitialized(false);
-    setError(null);
+    refetch();
   };
 
   if (isLoading || (isLoadingOrders && !error)) {
@@ -154,7 +60,7 @@ const OrderHistoryPage: React.FC = () => {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-semibold mb-6">Lịch sử đơn hàng</h1>
-        <ErrorNotification message={error} onClose={() => setError(null)} />
+        <ErrorNotification message={error} onClose={() => {}} />
         <div className="bg-white rounded-lg shadow-md p-8 text-center">
           <p className="text-xl text-gray-600 mb-4">Không thể tải lịch sử đơn hàng</p>
           <button 
@@ -168,7 +74,7 @@ const OrderHistoryPage: React.FC = () => {
     );
   }
 
-  if (isInitialized && orders.length === 0) {
+  if (orders.length === 0) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-semibold mb-6">Lịch sử đơn hàng</h1>
@@ -188,7 +94,7 @@ const OrderHistoryPage: React.FC = () => {
         return 'bg-yellow-100 text-yellow-800';
       case 'PROCESSING':
         return 'bg-blue-100 text-blue-800';
-      case 'SHIPPING':
+      case 'SHIPPED':
         return 'bg-purple-100 text-purple-800';
       case 'DELIVERED':
         return 'bg-green-100 text-green-800';
@@ -205,7 +111,7 @@ const OrderHistoryPage: React.FC = () => {
         return 'Chờ xác nhận';
       case 'PROCESSING':
         return 'Đang xử lý';
-      case 'SHIPPING':
+      case 'SHIPPED':
         return 'Đang giao hàng';
       case 'DELIVERED':
         return 'Đã giao hàng';
@@ -226,12 +132,7 @@ const OrderHistoryPage: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-semibold">Lịch sử đơn hàng</h1>
         <button 
-          onClick={() => {
-            sessionStorage.removeItem('order_history_cache');
-            setIsInitialized(false);
-            setIsLoadingOrders(true);
-            fetchOrders();
-          }}
+          onClick={refetch}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm"
         >
           Làm mới
@@ -254,100 +155,51 @@ const OrderHistoryPage: React.FC = () => {
                 </div>
               </div>
               
-              <hr className="my-4" />
-              
-              <div className="space-y-4">
-                {order.items.map((item) => (
-                  <div key={item.id} className="flex flex-col sm:flex-row">
-                    <div className="sm:w-20 sm:h-20 flex-shrink-0 mb-2 sm:mb-0">
-                      <img 
-                        src={item.image} 
-                        alt={item.name} 
-                        className="w-full h-full object-cover rounded-md"
-                      />
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-lg font-medium mb-2">Sản phẩm</h3>
+                <div className="space-y-3">
+                  {order.items.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="mr-3">
+                          <p className="font-medium">{item.productName}</p>
+                          <p className="text-sm text-gray-500">SL: {item.quantity}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium">{item.price.toLocaleString()} VND</p>
+                      </div>
                     </div>
-                    <div className="flex-grow sm:ml-4">
-                      <h3 className="text-lg font-medium">{item.name}</h3>
-                      <p className="text-gray-500">
-                        {item.quantity} x {item.price.toLocaleString('vi-VN')}₫
-                      </p>
-                    </div>
-                    <div className="sm:ml-4 mt-2 sm:mt-0">
-                      <Link 
-                        to={`/products/${item.productId}`}
-                        className="text-blue-600 hover:text-blue-800 text-sm"
-                      >
-                        Xem sản phẩm
-                      </Link>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
               
-              <hr className="my-4" />
-              
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-medium">Tổng cộng:</span>
-                <span className="text-xl font-semibold">{(order.total || 0).toLocaleString('vi-VN')}₫</span>
-              </div>
-              
-              <div className="mt-6 flex flex-wrap gap-3 justify-between">
-                <Link 
-                  to={`/order/${order.id}`}
-                  className="inline-block bg-white border border-blue-600 text-blue-600 px-6 py-2 rounded-md hover:bg-blue-50 transition-colors"
-                >
-                  Xem chi tiết
-                </Link>
-                
-                {order.status === 'DELIVERED' && (
-                  <button 
-                    onClick={() => handleReorder(order.id)}
-                    className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
+              <div className="border-t border-gray-200 mt-4 pt-4 flex flex-col md:flex-row md:justify-between md:items-center">
+                <div>
+                  <p className="text-gray-600">Tổng tiền: <span className="font-semibold text-gray-900">{order.totalAmount.toLocaleString()} VND</span></p>
+                  <p className="text-gray-600">Phương thức thanh toán: <span className="font-medium">{order.paymentInfo.paymentMethod}</span></p>
+                </div>
+                <div className="mt-3 md:mt-0 flex space-x-2">
+                  <Link 
+                    to={`/order/${order.id}`} 
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm"
                   >
-                    Mua lại
-                  </button>
-                )}
+                    Xem chi tiết
+                  </Link>
+                  {order.status === 'PENDING' && (
+                    <Link
+                      to={`/order/${order.id}`}
+                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm"
+                    >
+                      Hủy đơn hàng
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         ))}
       </div>
-      
-      {totalPages > 1 && (
-        <div className="flex justify-center mt-8">
-          <nav className="flex space-x-2" aria-label="Pagination">
-            <button
-              onClick={() => handleChangePage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="px-4 py-2 border rounded-md bg-white text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              Trước
-            </button>
-            
-            {Array.from({ length: totalPages }).map((_, index) => (
-              <button
-                key={index + 1}
-                onClick={() => handleChangePage(index + 1)}
-                className={`px-4 py-2 border rounded-md ${
-                  currentPage === index + 1
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-blue-600 hover:bg-blue-50'
-                }`}
-              >
-                {index + 1}
-              </button>
-            ))}
-            
-            <button
-              onClick={() => handleChangePage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="px-4 py-2 border rounded-md bg-white text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              Sau
-            </button>
-          </nav>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Product } from '../types';
 import ProductCard from '../components/common/ProductCard';
 import { useProduct } from '../hooks/useProduct';
@@ -9,6 +9,20 @@ interface PriceRange {
   label: string;
   min: number;
   max: number | null;
+}
+
+interface PaginationResult {
+  totalElements: number;
+  totalPages: number;
+  currentPage: number;
+  size: number;
+  isFirst: boolean;
+  isLast: boolean;
+}
+
+interface ProductsResult {
+  products: Product[];
+  pagination: PaginationResult;
 }
 
 const ProductsPage: React.FC = () => {
@@ -44,21 +58,42 @@ const ProductsPage: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [initialLoaded, setInitialLoaded] = useState<boolean>(false);
   const MAX_PRODUCTS_PER_PAGE = 30;
+  
+  // Theo dõi request để ngăn chặn gọi API nhiều lần không cần thiết
+  const loadingRef = useRef<boolean>(false);
+  const currentPageRef = useRef<number>(initialPage);
 
   const loadInitialProducts = useCallback(async () => {
+    // Nếu đang tải hoặc trang hiện tại đã được load, bỏ qua
+    if (loadingRef.current || (initialLoaded && currentPageRef.current === initialPage)) {
+      return;
+    }
+    
     try {
+      loadingRef.current = true;
       const pageSize = 12;
-      const result = await getProductsPaginated(initialPage, pageSize);
+      const result = await getProductsPaginated(initialPage, pageSize) as ProductsResult;
       setCurrentProducts(result.products);
       setIsLastPage(result.pagination.isLast);
       setPage(initialPage);
       setInitialLoaded(true);
+      currentPageRef.current = initialPage;
     } catch (err) {
       console.error("Error loading initial products:", err);
+    } finally {
+      loadingRef.current = false;
     }
-  }, [getProductsPaginated, initialPage]);
+  }, [getProductsPaginated, initialPage, initialLoaded]);
 
   useEffect(() => {
+    // Nếu URL query parameter page thay đổi, load products cho trang đó
+    if (initialPage !== currentPageRef.current) {
+      loadInitialProducts();
+    }
+  }, [initialPage, loadInitialProducts]);
+
+  useEffect(() => {
+    // Load danh mục chỉ khi chưa có
     if (categories.length === 0) {
       getCategories();
     }
@@ -67,15 +102,16 @@ const ProductsPage: React.FC = () => {
     loadInitialProducts();
   }, [categories.length, getCategories, loadInitialProducts]);
 
-  const loadMoreProducts = async () => {
-    if (isLastPage || loadingMore) return;
+  const loadMoreProducts = useCallback(async () => {
+    if (isLastPage || loadingMore || loadingRef.current) return;
     
     try {
       setLoadingMore(true);
+      loadingRef.current = true;
       const nextPage = page + 1;
       const pageSize = 12;
       
-      // Kiểm tra nếu tổng số sản phẩm vượt quá 30
+      // Kiểm tra nếu tổng số sản phẩm vượt quá giới hạn
       if (currentProducts.length + pageSize > MAX_PRODUCTS_PER_PAGE) {
         // Chuyển hướng sang trang mới thay vì load thêm
         navigate(`/products?page=${nextPage}`);
@@ -83,18 +119,27 @@ const ProductsPage: React.FC = () => {
         return;
       }
       
-      const result = await getProductsPaginated(nextPage, pageSize);
+      const result = await getProductsPaginated(nextPage, pageSize) as ProductsResult;
       
-      setCurrentProducts(prev => [...prev, ...result.products]);
+      setCurrentProducts(prev => {
+        // Chỉ thêm mới các sản phẩm có ID chưa tồn tại
+        const existingIds = new Set(prev.map(p => p.id));
+        const newProducts = result.products.filter(p => !existingIds.has(p.id));
+        return [...prev, ...newProducts];
+      });
+      
       setIsLastPage(result.pagination.isLast);
       setPage(nextPage);
+      currentPageRef.current = nextPage;
     } catch (err) {
       console.error("Error loading more products:", err);
     } finally {
       setLoadingMore(false);
+      loadingRef.current = false;
     }
-  };
+  }, [isLastPage, loadingMore, page, currentProducts.length, navigate, getProductsPaginated]);
 
+  // Memoize applyFilters function để ngăn render không cần thiết
   const applyFilters = useCallback(() => {
     if (!initialLoaded || currentProducts.length === 0) return;
     
@@ -157,7 +202,7 @@ const ProductsPage: React.FC = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [applyFilters, currentProducts]);
+  }, [applyFilters]);
 
   const handleCategoryChange = (categoryName: string) => {
     setSelectedCategories(prev => {

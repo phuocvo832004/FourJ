@@ -6,6 +6,7 @@ import com.fourj.productservice.dto.ProductDto;
 import com.fourj.productservice.dto.ProductUpdateDto;
 import com.fourj.productservice.event.ProductEventPublisher;
 import com.fourj.productservice.exception.ResourceNotFoundException;
+import com.fourj.productservice.exception.UnauthorizedAccessException;
 import com.fourj.productservice.model.Category;
 import com.fourj.productservice.model.Product;
 import com.fourj.productservice.model.ProductAttribute;
@@ -21,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -58,6 +61,11 @@ public class ProductServiceImpl implements ProductService {
         product.setImageUrl(productCreateDto.getImageUrl());
         product.setCategory(category);
         product.setActive(true);
+        
+        // Gán sellerId nếu có
+        if (productCreateDto.getSellerId() != null) {
+            product.setSellerId(productCreateDto.getSellerId());
+        }
 
         Product savedProduct = productRepository.save(product);
 
@@ -144,24 +152,40 @@ public class ProductServiceImpl implements ProductService {
             product.setActive(productUpdateDto.getActive());
         }
 
+        // Lưu sản phẩm trước khi xử lý thuộc tính để tránh ConcurrentModificationException
         Product updatedProduct = productRepository.save(product);
 
         // Cập nhật thuộc tính nếu được cung cấp
         if (productUpdateDto.getAttributes() != null) {
-            // Xóa thuộc tính cũ
-            attributeRepository.deleteByProductId(id);
-
-            // Thêm thuộc tính mới
+            // Lấy danh sách thuộc tính cũ để xóa sau
+            List<ProductAttribute> oldAttributes = attributeRepository.findByProductId(product.getId());
+            
+            // Xóa tất cả các thuộc tính cũ khỏi product.attributes 
+            // để tránh ConcurrentModificationException
+            product.setAttributes(new HashSet<>());
+            
+            // Lưu product với danh sách thuộc tính trống
+            productRepository.save(product);
+            
+            // Xóa các thuộc tính cũ trong database
+            attributeRepository.deleteAll(oldAttributes);
+            
+            // Tạo và lưu các thuộc tính mới
+            Set<ProductAttribute> newAttributes = new HashSet<>();
             for (ProductAttributeDto attributeDto : productUpdateDto.getAttributes()) {
                 ProductAttribute attribute = new ProductAttribute();
-                attribute.setProduct(updatedProduct);
+                attribute.setProduct(product);
                 attribute.setName(attributeDto.getName());
                 attribute.setValue(attributeDto.getValue());
-                attributeRepository.save(attribute);
+                newAttributes.add(attributeRepository.save(attribute));
             }
+            
+            // Gán lại danh sách thuộc tính mới
+            product.setAttributes(newAttributes);
+            updatedProduct = productRepository.save(product);
         }
 
-        ProductDto productDto = mapToDto(productRepository.findById(updatedProduct.getId()).orElseThrow());
+        ProductDto productDto = mapToDto(updatedProduct);
         
         // Phát sự kiện sản phẩm được cập nhật
         try {
@@ -169,7 +193,6 @@ public class ProductServiceImpl implements ProductService {
             log.info("Published product updated event for product ID: {}", productDto.getId());
         } catch (Exception e) {
             log.error("Failed to publish product updated event for ID: {}", productDto.getId(), e);
-            // Không ảnh hưởng đến transaction chính
         }
         
         return productDto;
@@ -178,42 +201,99 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public void deleteProduct(Long id) {
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm không tồn tại với id: " + id));
-
-        // Soft delete - chỉ cập nhật trạng thái active
-        product.setActive(false);
-        productRepository.save(product);
+        if (!productRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Sản phẩm không tồn tại với id: " + id);
+        }
         
-        // Phát sự kiện sản phẩm bị xóa
         try {
-            eventPublisher.publishProductDeleted(id.toString());
+            // Phát sự kiện sản phẩm bị xóa
+            ProductDto productDto = getProductById(id);
+            productRepository.deleteById(id);
+            eventPublisher.publishProductDeleted(productDto);
             log.info("Published product deleted event for product ID: {}", id);
         } catch (Exception e) {
-            log.error("Failed to publish product deleted event for ID: {}", id, e);
-            // Không ảnh hưởng đến transaction chính
+            log.error("Error processing product deletion for ID: {}", id, e);
+            throw e;
         }
     }
 
     private ProductDto mapToDto(Product product) {
-        List<ProductAttribute> attributes = attributeRepository.findByProductId(product.getId());
-        List<ProductAttributeDto> attributeDtos = attributes.stream()
-                .map(attr -> new ProductAttributeDto(attr.getId(), attr.getName(), attr.getValue()))
-                .collect(Collectors.toList());
-
-        return ProductDto.builder()
+        ProductDto.ProductDtoBuilder builder = ProductDto.builder()
                 .id(product.getId())
                 .name(product.getName())
                 .description(product.getDescription())
                 .price(product.getPrice())
                 .stockQuantity(product.getStockQuantity())
                 .imageUrl(product.getImageUrl())
-                .categoryId(product.getCategory().getId())
-                .categoryName(product.getCategory().getName())
-                .attributes(attributeDtos)
                 .active(product.isActive())
+                .sellerId(product.getSellerId())
                 .createdAt(product.getCreatedAt())
-                .updatedAt(product.getUpdatedAt())
-                .build();
+                .updatedAt(product.getUpdatedAt());
+        
+        // Xử lý an toàn khi category có thể null
+        if (product.getCategory() != null) {
+            builder.categoryId(product.getCategory().getId())
+                   .categoryName(product.getCategory().getName());
+        }
+        
+        ProductDto dto = builder.build();
+
+        // Xử lý attributes nếu có
+        Set<ProductAttribute> attributes = product.getAttributes();
+        if (attributes != null && !attributes.isEmpty()) {
+            // Sử dụng new ArrayList để tránh ConcurrentModificationException
+            dto.setAttributes(new ArrayList<>(attributes).stream()
+                    .map(attr -> new ProductAttributeDto(attr.getId(), attr.getName(), attr.getValue()))
+                    .collect(Collectors.toList()));
+        }
+
+        return dto;
+    }
+    
+    // Các phương thức mới
+
+    @Override
+    public Page<ProductDto> getProductsBySeller(String sellerId, Pageable pageable) {
+        return productRepository.findBySellerIdAndActiveTrue(sellerId, pageable)
+                .map(this::mapToDto);
+    }
+
+    @Override
+    public Page<ProductDto> searchProductsBySeller(String sellerId, String keyword, Pageable pageable) {
+        return productRepository.findBySellerIdAndNameContainingIgnoreCaseAndActiveTrue(sellerId, keyword, pageable)
+                .map(this::mapToDto);
+    }
+
+    @Override
+    public ProductDto getProductByIdAndSellerId(Long id, String sellerId) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm không tồn tại với id: " + id));
+        
+        if (!product.getSellerId().equals(sellerId)) {
+            throw new UnauthorizedAccessException("Bạn không có quyền truy cập sản phẩm này");
+        }
+        
+        return mapToDto(product);
+    }
+
+    @Override
+    public Page<ProductDto> getProductsByActiveStatus(boolean active, Pageable pageable) {
+        return productRepository.findByActive(active, pageable)
+                .map(this::mapToDto);
+    }
+
+    @Override
+    public Page<ProductDto> getAllProductsIncludeInactive(Pageable pageable) {
+        return productRepository.findAll(pageable)
+                .map(this::mapToDto);
+    }
+
+    @Override
+    public Page<ProductDto> getProductsByCategoryAndSeller(Long categoryId, String sellerId, Pageable pageable) {
+        if (!categoryRepository.existsById(categoryId)) {
+            throw new ResourceNotFoundException("Danh mục không tồn tại với id: " + categoryId);
+        }
+        return productRepository.findByCategoryIdAndSellerIdAndActiveTrue(categoryId, sellerId, pageable)
+                .map(this::mapToDto);
     }
 }

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import MultiImageUpload from '../../components/MultiImageUpload';
+import { CloudinaryUploadResponse } from '../../utils/cloudinaryUpload';
 
 type ProductFormData = {
   name: string;
@@ -10,7 +12,7 @@ type ProductFormData = {
   price: number;
   stock: number;
   category: string;
-  images: FileList | null;
+  images?: CloudinaryUploadResponse[];
 };
 
 const categories = [
@@ -24,17 +26,24 @@ const categories = [
 const SellerProductAddPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [imagePreview, setImagePreview] = useState<string[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<CloudinaryUploadResponse[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   
-  const { register, handleSubmit, control, formState: { errors } } = useForm<ProductFormData>();
+  // Sử dụng biến môi trường từ Vite
+  const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dxggv6rnr';
+  const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'upload-preset';
+  
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<ProductFormData>();
+
+  // Thiết lập images mặc định khi component được tạo
+  React.useEffect(() => {
+    setValue('images', uploadedImages);
+  }, [uploadedImages, setValue]);
   
   const createProductMutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      const response = await axios.post('/api/seller/products', data, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+    mutationFn: async (data: ProductFormData) => {
+      // Giả sử API của bạn đã được cập nhật để nhận CloudinaryUploadResponse thay vì File
+      const response = await axios.post('/api/seller/products', data);
       return response.data;
     },
     onSuccess: () => {
@@ -44,40 +53,40 @@ const SellerProductAddPage: React.FC = () => {
   });
   
   const onSubmit = (data: ProductFormData) => {
-    const formData = new FormData();
-    formData.append('name', data.name);
-    formData.append('description', data.description);
-    formData.append('price', data.price.toString());
-    formData.append('stock', data.stock.toString());
-    formData.append('category', data.category);
-    
-    if (data.images) {
-      for (let i = 0; i < data.images.length; i++) {
-        formData.append('images', data.images[i]);
-      }
+    // Kiểm tra xem đã có ảnh được tải lên chưa
+    if (!uploadedImages.length) {
+      setUploadError('Vui lòng tải lên ít nhất một hình ảnh');
+      return;
     }
     
-    createProductMutation.mutate(formData);
+    // Gán danh sách ảnh đã upload vào dữ liệu form
+    data.images = uploadedImages;
+    
+    // Gửi dữ liệu JSON thay vì FormData vì hình ảnh đã được upload trực tiếp lên Cloudinary
+    createProductMutation.mutate(data);
   };
   
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    
-    const previewUrls: string[] = [];
-    
-    for (let i = 0; i < files.length; i++) {
-      const url = URL.createObjectURL(files[i]);
-      previewUrls.push(url);
-    }
-    
-    setImagePreview(previewUrls);
+  const handleImagesUploaded = (newImages: CloudinaryUploadResponse[]) => {
+    setUploadedImages(prev => [...prev, ...newImages]);
+    setUploadError(null);
+  };
+  
+  const handleUploadError = (error: string) => {
+    setUploadError(error);
+    // Tự động xóa thông báo lỗi sau 5 giây
+    setTimeout(() => setUploadError(null), 5000);
   };
   
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="bg-white shadow-md rounded-lg p-6">
         <h1 className="text-2xl font-bold text-gray-800 mb-6">Thêm Sản Phẩm Mới</h1>
+        
+        {uploadError && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            <span className="block sm:inline">{uploadError}</span>
+          </div>
+        )}
         
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
@@ -161,37 +170,19 @@ const SellerProductAddPage: React.FC = () => {
           </div>
           
           <div>
-            <label htmlFor="images" className="block text-sm font-medium text-gray-700 mb-1">
-              Hình ảnh
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Hình ảnh sản phẩm
             </label>
-            <Controller
-              name="images"
-              control={control}
-              rules={{ required: 'Hình ảnh là bắt buộc' }}
-              render={({ field }) => (
-                <input
-                  id="images"
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={(e) => {
-                    field.onChange(e.target.files);
-                    handleImageChange(e);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              )}
+            <MultiImageUpload
+              onImagesUploaded={handleImagesUploaded}
+              onError={handleUploadError}
+              cloudName={CLOUDINARY_CLOUD_NAME}
+              uploadPreset={CLOUDINARY_UPLOAD_PRESET}
+              maxFiles={10}
+              initialImages={uploadedImages}
             />
-            {errors.images && <p className="mt-1 text-sm text-red-600">{errors.images.message}</p>}
-            
-            {imagePreview.length > 0 && (
-              <div className="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {imagePreview.map((src, index) => (
-                  <div key={index} className="relative h-24 bg-gray-100 rounded-md overflow-hidden">
-                    <img src={src} alt={`Preview ${index + 1}`} className="h-full w-full object-cover" />
-                  </div>
-                ))}
-              </div>
+            {uploadedImages.length === 0 && (
+              <p className="mt-1 text-sm text-yellow-600">Vui lòng tải lên ít nhất một hình ảnh cho sản phẩm</p>
             )}
           </div>
           
@@ -199,16 +190,18 @@ const SellerProductAddPage: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/seller/products')}
-              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={createProductMutation.isPending}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
+              className={`px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                createProductMutation.isPending ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
             >
-              {createProductMutation.isPending ? 'Đang xử lý...' : 'Lưu sản phẩm'}
+              {createProductMutation.isPending ? 'Đang tạo...' : 'Tạo sản phẩm'}
             </button>
           </div>
         </form>

@@ -21,6 +21,7 @@ import LoginPage from './pages/LoginPage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import ContactPage from './pages/ContactPage';
 import PaymentResultPage from './pages/PaymentResultPage';
+import ImageUploadExample from './pages/ImageUploadExample';
 
 // Admin pages
 import AdminLayout from './components/admin/AdminLayout';
@@ -67,6 +68,7 @@ const Application = () => {
               <Route path="seller/register" element={<SellerRegistrationPage />} />
               <Route path="seller/pending" element={<SellerPendingPage />} />
               <Route path="payment-result" element={<PaymentResultPage />} />
+              <Route path="image-upload-example" element={<ImageUploadExample />} />
               
               {/* Protected routes - chỉ cần đăng nhập */}
               <Route element={<ProtectedRoute />}>

@@ -1,5 +1,6 @@
 package com.fourj.userservice.dto;
 
+import com.fourj.userservice.model.UserProfile.VerificationStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,6 +24,15 @@ public class UserProfileDto {
     private String gender;
     private String avatarUrl;
     private String biography;
+    
+    // Thông tin seller
+    private boolean seller;
+    private String storeName;
+    private String taxId;
+    private String businessAddress;
+    private VerificationStatus verificationStatus;
+    private LocalDateTime verificationDate;
+    
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

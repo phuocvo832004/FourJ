@@ -51,11 +51,12 @@ const SellerAnalyticsPage: React.FC = () => {
         startDate = startOfMonth(today);
         endDate = endOfMonth(today);
         break;
-      case 'lastMonth':
+      case 'lastMonth': {
         const lastMonth = subMonths(today, 1);
         startDate = startOfMonth(lastMonth);
         endDate = endOfMonth(lastMonth);
         break;
+      }
       case 'custom':
         startDate = customStartDate ? new Date(customStartDate) : subDays(today, 30);
         endDate = customEndDate ? new Date(customEndDate) : today;

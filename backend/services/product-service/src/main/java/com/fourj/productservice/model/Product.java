@@ -2,17 +2,22 @@ package com.fourj.productservice.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 @Entity
 @Table(name = "products")
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"category", "attributes"})
 @NoArgsConstructor
 @AllArgsConstructor
 public class Product {
@@ -43,6 +48,9 @@ public class Product {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(name = "seller_id")
+    private String sellerId = "default_seller";
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
@@ -56,5 +64,18 @@ public class Product {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Product product = (Product) o;
+        return Objects.equals(id, product.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

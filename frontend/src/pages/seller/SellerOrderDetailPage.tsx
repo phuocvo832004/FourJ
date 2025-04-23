@@ -315,7 +315,7 @@ const SellerOrderDetailPage: React.FC = () => {
             )}
             <div className="text-lg font-bold text-gray-900 flex justify-between w-full max-w-xs mt-2">
               <span>Tổng cộng:</span>
-              <span>{formatCurrency(order.total)}</span>
+              <span>{formatCurrency(order.totalAmount)}</span>
             </div>
           </div>
           

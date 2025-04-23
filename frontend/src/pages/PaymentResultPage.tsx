@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../auth/auth-hooks';
 import apiClient from '../api/apiClient';
+
+interface ErrorWithResponse extends Error {
+  response?: {
+    status?: number;
+  };
+}
 
 const PaymentResultPage: React.FC = () => {
   const [status, setStatus] = useState<'success' | 'failed' | 'loading' | 'error'>('loading');
@@ -12,7 +17,6 @@ const PaymentResultPage: React.FC = () => {
   
   const location = useLocation();
   const navigate = useNavigate();
-  const { getToken } = useAuth();
   
   useEffect(() => {
     const checkPaymentStatus = async () => {
@@ -39,20 +43,22 @@ const PaymentResultPage: React.FC = () => {
           return;
         }
         
-        const token = await getToken();
-        if (!token) {
-          setStatus('error');
-          setErrorMessage('Không có token xác thực');
-          return;
-        }
-        
         try {
-          // Gọi API từ order-service để kiểm tra trạng thái thanh toán
-          const response = await apiClient.get(`/orders/number/${orderCode}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
+          // Kiểm tra token trong localStorage
+          const token = localStorage.getItem('auth_token');
+          if (!token) {
+            console.warn('Không tìm thấy token trong localStorage');
+            // Lưu URL hiện tại để chuyển hướng sau khi đăng nhập
+            localStorage.setItem('redirect_after_login', window.location.href);
+            // Chuyển hướng đến trang đăng nhập
+            setStatus('error');
+            setErrorMessage('Vui lòng đăng nhập để xem chi tiết đơn hàng');
+            navigate('/login');
+            return;
+          }
+          
+          // Sử dụng orderApi thay vì gọi trực tiếp apiClient
+          const response = await apiClient.get(`/orders/number/${orderCode}`);
           
           const orderData = response.data;
           
@@ -76,8 +82,18 @@ const PaymentResultPage: React.FC = () => {
               setTimeout(() => checkPaymentStatus(), 5000);
             }
           }
-        } catch (error) {
+        } catch (error: unknown) {
           console.error('Error fetching order details:', error);
+          
+          // Xử lý lỗi 401 (Unauthorized)
+          const apiError = error as ErrorWithResponse;
+          if (apiError.response?.status === 401) {
+            console.warn('Token hết hạn hoặc không hợp lệ');
+            localStorage.setItem('redirect_after_login', window.location.href);
+            navigate('/login');
+            return;
+          }
+          
           if (status !== 'success' && status !== 'cancelled' && status !== 'failed') {
             setStatus('error');
             setErrorMessage('Không thể lấy thông tin đơn hàng');
@@ -91,7 +107,7 @@ const PaymentResultPage: React.FC = () => {
     };
     
     checkPaymentStatus();
-  }, [location.search, getToken]);
+  }, [location.search, navigate]);
   
   const renderContent = () => {
     switch (status) {

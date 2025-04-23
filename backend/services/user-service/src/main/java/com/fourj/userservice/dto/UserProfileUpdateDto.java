@@ -22,4 +22,9 @@ public class UserProfileUpdateDto {
     private String gender;
     private String avatarUrl;
     private String biography;
+    
+    // Thông tin seller
+    private String storeName;
+    private String taxId;
+    private String businessAddress;
 }

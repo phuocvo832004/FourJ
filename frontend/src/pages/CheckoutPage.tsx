@@ -87,8 +87,14 @@ const CheckoutPage: React.FC = () => {
           return;
         }
         
-        // Lấy giỏ hàng mới nhất
-        await fetchCart();
+        // Lấy giỏ hàng mới nhất - LUÔN gọi API để đảm bảo dữ liệu mới nhất
+        // Thêm tham số force=true để bỏ qua cache
+        await fetchCart({ force: true });
+        
+        // Thêm timeout ngắn để đảm bảo state được cập nhật
+        setTimeout(() => {
+          setIsInitialized(true);
+        }, 100);
         
         // Nếu user đã có thông tin địa chỉ, tự động điền
         if (user?.address) {
@@ -109,8 +115,6 @@ const CheckoutPage: React.FC = () => {
             console.error('Failed to parse user address', e);
           }
         }
-        
-        setIsInitialized(true);
       } catch (error) {
         console.error('Error initializing checkout:', error);
         if (String(error).includes('token') || String(error).includes('authentication')) {

@@ -34,4 +34,7 @@ public class ProductCreateDto {
     private Long categoryId;
 
     private List<ProductAttributeDto> attributes;
+    
+    // Có thể để null khi tạo từ admin, sẽ được gán trong controller
+    private String sellerId;
 }

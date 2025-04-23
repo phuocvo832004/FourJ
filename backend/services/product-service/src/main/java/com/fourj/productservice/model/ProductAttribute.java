@@ -2,12 +2,18 @@ package com.fourj.productservice.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
+
+import java.util.Objects;
 
 @Entity
 @Table(name = "product_attributes")
-@Data
+@Getter
+@Setter
+@ToString(exclude = "product")
 @NoArgsConstructor
 @AllArgsConstructor
 public class ProductAttribute {
@@ -24,4 +30,17 @@ public class ProductAttribute {
 
     @Column(nullable = false)
     private String value;
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ProductAttribute that = (ProductAttribute) o;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }

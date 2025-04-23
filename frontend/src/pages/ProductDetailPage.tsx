@@ -1,29 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import product1Image from '../assets/product-1.jpg';
 import { useCart } from '../hooks/useCart';
-import apiClient from '../api/apiClient';
 import { formatCurrency } from '../utils/formatters';
-
-// Interface cho API response có thể chứa stock_quantity
-interface ApiProductResponse {
-  id: number;
-  name: string;
-  price: number;
-  description: string;
-  imageUrl?: string;
-  // Thêm các trường cho danh mục theo đúng API
-  category?: {
-    id: number;
-    name: string;
-  };
-  categoryId?: number;
-  categoryName?: string;
-  stock_quantity?: number;
-  stockQuantity?: number;
-  isActive: boolean;
-}
+import { useProduct } from '../hooks/useProduct';
+import { Product } from '../types';
 
 // Interface chuẩn cho sản phẩm trong ứng dụng
 interface ApiProduct {
@@ -52,60 +34,49 @@ const ProductDetailPage: React.FC = () => {
   const [product, setProduct] = useState<ApiProduct | null>(null);
   const [isLoadingProduct, setIsLoadingProduct] = useState(true);
   const [productError, setProductError] = useState<string | null>(null);
+  const { getProductById } = useProduct();
 
-  useEffect(() => {
-    const fetchProduct = async () => {
-      if (!id) return;
-      
-      setIsLoadingProduct(true);
-      setProductError(null);
-      
-      try {
-        const response = await apiClient.get<ApiProductResponse>(`/products/${id}`);
-        
-        // Chuyển đổi từ response format sang ApiProduct format
-        const productData = response.data;
-        
-        // Xử lý danh mục - ưu tiên cấu trúc object category trước
-        let categoryName = 'Uncategorized';
-        let categoryId: number | undefined = undefined;
-        
-        // Trường hợp 1: API trả về object category
-        if (productData.category && productData.category.name) {
-          categoryName = productData.category.name;
-          categoryId = productData.category.id;
-        } 
-        // Trường hợp 2: API trả về trường categoryName trực tiếp
-        else if (productData.categoryName) {
-          categoryName = productData.categoryName;
-          categoryId = productData.categoryId;
-        }
-        
-        const normalizedProduct: ApiProduct = {
-          id: productData.id,
-          name: productData.name,
-          price: productData.price,
-          description: productData.description,
-          imageUrl: productData.imageUrl,
-          // Lưu trữ cả hai định dạng của danh mục để đảm bảo tương thích
-          category: productData.category || (categoryId ? { id: categoryId, name: categoryName } : undefined),
-          categoryId: categoryId || productData.categoryId,
-          categoryName: categoryName,
-          stockQuantity: productData.stockQuantity || productData.stock_quantity || 0,
-          isActive: productData.isActive
-        };
-        
-        setProduct(normalizedProduct);
-      } catch (error) {
-        console.error('Error fetching product:', error);
-        setProductError('Không thể tải thông tin sản phẩm. Vui lòng thử lại sau.');
-      } finally {
-        setIsLoadingProduct(false);
-      }
-    };
+  // Cache cho việc load sản phẩm để ngăn gọi API nhiều lần
+  const fetchProduct = useCallback(async () => {
+    if (!id) return;
     
+    setIsLoadingProduct(true);
+    setProductError(null);
+    
+    try {
+      // Sử dụng hook useProduct đã tối ưu để lấy sản phẩm và tận dụng cache
+      const productData = await getProductById(id) as Product;
+      
+      // Chuyển đổi từ response format sang ApiProduct format
+      const normalizedProduct: ApiProduct = {
+        id: parseInt(productData.id),
+        name: productData.name,
+        price: productData.price,
+        description: productData.description,
+        imageUrl: productData.image,
+        // Lưu trữ cả hai định dạng của danh mục để đảm bảo tương thích
+        categoryName: productData.category,
+        categoryId: productData.categoryId,
+        category: productData.categoryId ? { 
+          id: productData.categoryId, 
+          name: productData.category 
+        } : undefined,
+        stockQuantity: 10, // Mặc định hoặc lấy từ API nếu có
+        isActive: true // Mặc định hoặc lấy từ API nếu có
+      };
+      
+      setProduct(normalizedProduct);
+    } catch (error) {
+      console.error('Error fetching product:', error);
+      setProductError('Không thể tải thông tin sản phẩm. Vui lòng thử lại sau.');
+    } finally {
+      setIsLoadingProduct(false);
+    }
+  }, [id, getProductById]);
+  
+  useEffect(() => {
     fetchProduct();
-  }, [id]);
+  }, [fetchProduct]);
 
   const handleAddToCart = () => {
     if (!product) return;

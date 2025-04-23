@@ -10,6 +10,7 @@ interface Order {
   status: 'pending' | 'processing' | 'shipping' | 'delivered' | 'cancelled';
   paymentMethod: string;
   items: number;
+  totalAmount: number;
 }
 
 const AdminOrdersPage: React.FC = () => {
@@ -24,6 +25,7 @@ const AdminOrdersPage: React.FC = () => {
       status: 'delivered',
       paymentMethod: 'COD',
       items: 2,
+      totalAmount: 1250000,
     },
     {
       id: 'ORD-002',
@@ -34,6 +36,7 @@ const AdminOrdersPage: React.FC = () => {
       status: 'shipping',
       paymentMethod: 'Thẻ tín dụng',
       items: 1,
+      totalAmount: 850000,
     },
     {
       id: 'ORD-003',
@@ -44,6 +47,7 @@ const AdminOrdersPage: React.FC = () => {
       status: 'processing',
       paymentMethod: 'Chuyển khoản',
       items: 3,
+      totalAmount: 2150000,
     },
     {
       id: 'ORD-004',
@@ -54,6 +58,7 @@ const AdminOrdersPage: React.FC = () => {
       status: 'cancelled',
       paymentMethod: 'Ví điện tử',
       items: 2,
+      totalAmount: 1750000,
     },
     {
       id: 'ORD-005',
@@ -64,6 +69,7 @@ const AdminOrdersPage: React.FC = () => {
       status: 'delivered',
       paymentMethod: 'Thẻ tín dụng',
       items: 4,
+      totalAmount: 3200000,
     },
     {
       id: 'ORD-006',
@@ -74,6 +80,7 @@ const AdminOrdersPage: React.FC = () => {
       status: 'delivered',
       paymentMethod: 'COD',
       items: 1,
+      totalAmount: 920000,
     },
     {
       id: 'ORD-007',
@@ -84,6 +91,7 @@ const AdminOrdersPage: React.FC = () => {
       status: 'pending',
       paymentMethod: 'Chuyển khoản',
       items: 2,
+      totalAmount: 1570000,
     },
     {
       id: 'ORD-008',
@@ -94,6 +102,7 @@ const AdminOrdersPage: React.FC = () => {
       status: 'shipping',
       paymentMethod: 'Thẻ tín dụng',
       items: 3,
+      totalAmount: 2780000,
     },
   ]);
 
@@ -293,7 +302,7 @@ const AdminOrdersPage: React.FC = () => {
                     {order.date}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatPrice(order.total)}
+                    {formatPrice(order.totalAmount)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {renderStatus(order.status)}
@@ -410,7 +419,7 @@ const AdminOrdersPage: React.FC = () => {
                     <div className="border-t border-gray-200 pt-4">
                       <div className="flex justify-between">
                         <p className="text-sm font-medium text-gray-500">Tổng tiền</p>
-                        <p className="text-base font-semibold text-gray-900">{formatPrice(selectedOrder.total)}</p>
+                        <p className="text-base font-semibold text-gray-900">{formatPrice(selectedOrder.totalAmount)}</p>
                       </div>
                     </div>
                   </div>
