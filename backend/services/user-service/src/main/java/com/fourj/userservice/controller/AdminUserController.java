@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/admin/users")
+@RequestMapping("/api/users/admin")
 @Slf4j
 @PreAuthorize("hasAuthority('admin:access')")
 public class AdminUserController {

@@ -42,10 +42,10 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").permitAll()
                         // Endpoint cho admin
                         .requestMatchers("/api/admin/**").hasAuthority("admin:access")
-                        // Endpoint cho seller
-                        .requestMatchers("/api/seller/**").hasAuthority("seller:access")
                         // Endpoint đăng ký làm seller - bất kỳ người dùng đã xác thực
                         .requestMatchers("/api/seller/register").authenticated()
+                        // Endpoint cho seller
+                        .requestMatchers("/api/seller/**").hasAuthority("seller:access")
                         // Endpoint cho người dùng thông thường
                         .requestMatchers("/api/users/me/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/**").authenticated()
@@ -72,7 +72,7 @@ public class SecurityConfig {
         NimbusJwtDecoder jwtDecoder = (NimbusJwtDecoder)
                 JwtDecoders.fromOidcIssuerLocation(issuer);
 
-        String audience = "http://localhost:80/";
+        String audience = "http://localhost:80";
         OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audience);
         OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuer);
         OAuth2TokenValidator<Jwt> withAudience = new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator);

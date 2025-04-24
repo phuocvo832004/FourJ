@@ -1,6 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import searchApi, { SearchResult, FacetEntry } from '../api/searchApi';
+import { useCart } from '../hooks/useCart';
+import { formatCurrency } from '../utils/formatters';
+import { PlusIcon, MinusIcon } from '@heroicons/react/24/solid';
+import searchApi, { SearchResult as ApiSearchResult, FacetEntry, SearchParams as ApiSearchParams } from '../api/searchApi';
+
+// Định nghĩa lại interface cho cấu trúc product từ API
+interface ApiProduct {
+  id: string;
+  name: string;
+  price: number;
+  imageUrl: string;
+  categoryName: string;
+  rating?: number;
+}
 
 // Interface for product display
 interface Product {
@@ -20,6 +33,7 @@ const SearchResultsPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const query = searchParams.get('q') || '';
+  const { addItem: addToCart } = useCart();
   
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +43,7 @@ const SearchResultsPage = () => {
   const [page, setPage] = useState(0);
   const [size] = useState(12); // Giảm kích thước để card lớn hơn
   const [facets, setFacets] = useState<Record<string, FacetEntry[]>>({});
+  const [quantityMap, setQuantityMap] = useState<Record<string, number>>({});
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [filters, setFilters] = useState({
     priceRange: [0, 1000000],
@@ -67,12 +82,12 @@ const SearchResultsPage = () => {
         }
         
         // Xây dựng tham số tìm kiếm
-        const searchParams = {
+        const searchRequestParams: ApiSearchParams = {
           query,
           page,
           size,
           sortOption: apiSortOption,
-          categories: filters.categories.length > 0 ? filters.categories : undefined,
+          categories: filters.categories as string[] | undefined, 
           priceRange: {
             min: filters.priceRange[0],
             max: filters.priceRange[1]
@@ -81,10 +96,10 @@ const SearchResultsPage = () => {
         };
         
         // Gọi API
-        const result: SearchResult = await searchApi.searchProducts(searchParams);
-        
+        const result: ApiSearchResult = await searchApi.searchProductsComplex(searchRequestParams);
+
         // Chuyển đổi dữ liệu từ API thành dạng hiển thị
-        setProducts(result.products.map(product => ({
+        setProducts((result.products as ApiProduct[]).map((product: ApiProduct) => ({
           id: product.id,
           name: product.name,
           price: product.price,
@@ -158,6 +173,35 @@ const SearchResultsPage = () => {
   // Xử lý điều hướng đến trang chi tiết sản phẩm
   const handleProductClick = (productId: string) => {
     navigate(`/products/${productId}`);
+  };
+
+  // Hàm xử lý thay đổi số lượng
+  const handleQuantityChange = (productId: string, newQuantity: number) => {
+    // Giới hạn số lượng tối thiểu là 1
+    const validQuantity = Math.max(1, newQuantity);
+    setQuantityMap(prev => ({
+      ...prev,
+      [productId]: validQuantity,
+    }));
+  };
+
+  // Hàm xử lý thêm vào giỏ hàng
+  const handleAddToCart = (product: Product) => {
+    const quantityToAdd = quantityMap[product.id] || 1; // Lấy số lượng từ state, mặc định là 1
+    addToCart({
+      id: product.id, // Sử dụng id của sản phẩm làm id của cart item
+      productId: product.id,
+      productName: product.name,
+      productImage: product.image,
+      name: product.name,
+      price: product.price,
+      image: product.image,
+      quantity: quantityToAdd,
+      category: product.category, // Thêm category nếu cần
+      description: '', // Thêm description nếu cần
+    });
+    // Tùy chọn: Reset số lượng về 1 sau khi thêm?
+    // setQuantityMap(prev => ({ ...prev, [product.id]: 1 }));
   };
 
   return (
@@ -391,62 +435,83 @@ const SearchResultsPage = () => {
               </div>
               
               {/* Product cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {products.map(product => (
-                  <div 
-                    key={product.id} 
-                    className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
-                    onClick={() => handleProductClick(product.id)}
-                  >
-                    {/* Product image */}
-                    <div className="relative h-48 overflow-hidden bg-gray-100">
-                      <img 
-                        src={product.image || '/placeholder.jpg'} 
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {products.map((product) => (
+                  <div key={product.id} className="bg-white rounded-lg shadow-md overflow-hidden transition-transform duration-300 hover:shadow-lg flex flex-col">
+                    <div className="relative cursor-pointer" onClick={() => handleProductClick(product.id)}>
+                      <img
+                        src={product.image}
                         alt={product.name}
-                        className="w-full h-full object-cover object-center transition-transform duration-300 hover:scale-105"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/placeholder.jpg';
-                        }}
+                        className="w-full h-52 object-cover"
                       />
+                      {product.discount && (
+                        <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                          -{product.discount}%
+                        </div>
+                      )}
                     </div>
-                    
-                    {/* Product info */}
-                    <div className="p-4">
-                      <div className="mb-2">
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{product.category}</span>
-                      </div>
-                      
-                      <h3 className="font-medium text-gray-800 mb-2 h-10 line-clamp-2 hover:text-blue-600 transition-colors">{product.name}</h3>
-                      
-                      <div className="flex items-center mb-2">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <svg 
-                            key={i} 
-                            className={`w-4 h-4 ${i < Math.floor(product.rating) ? 'text-yellow-400' : 'text-gray-300'} fill-current`}
-                            xmlns="http://www.w3.org/2000/svg" 
-                            viewBox="0 0 24 24"
-                          >
-                            <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                    <div className="p-4 flex flex-col flex-grow">
+                      <span className="text-xs text-gray-500 mb-1 uppercase tracking-wider">{product.category}</span>
+                      <h3 
+                        className="text-md font-semibold mb-2 text-gray-800 flex-grow cursor-pointer hover:text-blue-600"
+                        onClick={() => handleProductClick(product.id)}
+                      >
+                        {product.name}
+                      </h3>
+                      <div className="flex items-center mb-3">
+                        {[...Array(5)].map((_, i) => (
+                          <svg key={i} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill={i < product.rating ? "currentColor" : "none"} className={`w-4 h-4 ${i < product.rating ? 'text-yellow-400' : 'text-gray-300'}`}>
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                           </svg>
                         ))}
-                        <span className="ml-1 text-xs text-gray-500">({product.rating.toFixed(1)})</span>
+                        <span className="text-xs text-gray-500 ml-1">({product.rating.toFixed(1)})</span>
                       </div>
+                      <p className="text-lg font-bold text-blue-600 mb-4">{formatCurrency(product.price)}₫</p>
                       
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <span className="font-bold text-lg text-gray-800">{product.price.toLocaleString()}đ</span>
+                      {/* Quantity controls and Add to cart button */}
+                      <div className="mt-auto">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm text-gray-600">Số lượng:</span>
+                            <div className="flex items-center border border-gray-200 rounded">
+                                <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleQuantityChange(product.id, (quantityMap[product.id] || 1) - 1);
+                                    }}
+                                    className="px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-l"
+                                    disabled={(quantityMap[product.id] || 1) <= 1}
+                                >
+                                    <MinusIcon className="h-4 w-4" />
+                                </button>
+                                <input
+                                    type="number"
+                                    value={quantityMap[product.id] || 1}
+                                    onChange={(e) => handleQuantityChange(product.id, parseInt(e.target.value || '1'))}
+                                    className="w-12 text-center border-l border-r px-2 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    min="1"
+                                />
+                                <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleQuantityChange(product.id, (quantityMap[product.id] || 1) + 1);
+                                    }}
+                                    className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-r"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
                         <button 
-                          className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                           onClick={(e) => {
-                            e.stopPropagation(); // Ngăn sự kiện click truyền lên card sản phẩm
-                            // Thêm logic xử lý thêm vào giỏ hàng ở đây
-                            alert(`Đã thêm ${product.name} vào giỏ hàng`);
+                            e.stopPropagation();
+                            handleAddToCart(product);
                           }}
+                          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-300 font-medium text-sm flex items-center justify-center"
                         >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                           </svg>
+                          Thêm vào giỏ
                         </button>
                       </div>
                     </div>

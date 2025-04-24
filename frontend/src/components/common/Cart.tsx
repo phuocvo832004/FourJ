@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, MinusIcon } from '@heroicons/react/24/solid';
 import { CartItem } from '../../types';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../../utils/formatters';
@@ -18,6 +19,7 @@ const Cart: React.FC<CartProps> = ({
   onClose,
   items,
   onRemoveItem,
+  onUpdateQuantity,
 }) => {
   // Tính tổng giá trị giỏ hàng từ các items được truyền vào props
   const cartTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -86,11 +88,31 @@ const Cart: React.FC<CartProps> = ({
                                 Xóa
                               </button>
                             </div>
-                            <p className="mt-1 text-sm text-gray-500">
-                              SL: {item.quantity} x {formatCurrency(item.price)}₫
-                            </p>
-                            <p className="mt-1 text-sm font-medium text-gray-900">
-                              {formatCurrency(item.price * item.quantity)}₫
+                            <div className="flex items-center justify-between mt-2">
+                              <p className="text-sm text-gray-500">
+                                {formatCurrency(item.price)}₫
+                              </p>
+                              <div className="flex items-center border border-gray-200 rounded">
+                                <button
+                                  onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+                                  disabled={item.quantity <= 1}
+                                  className="px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-l"
+                                >
+                                  <MinusIcon className="h-4 w-4" />
+                                </button>
+                                <span className="px-3 py-1 text-sm font-medium border-l border-r">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                                  className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-r"
+                                >
+                                  <PlusIcon className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                            <p className="mt-1 text-sm font-medium text-gray-900 text-right">
+                              Tổng: {formatCurrency(item.price * item.quantity)}₫
                             </p>
                           </div>
                         </div>
@@ -112,7 +134,6 @@ const Cart: React.FC<CartProps> = ({
                         >
                           Thanh toán ({formatCurrency(cartTotal)}₫)
                         </Link>
-
                       </div>
                     </div>
                   </div>

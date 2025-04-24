@@ -18,7 +18,7 @@ public class CartClient {
 
     public Mono<CartDto> getCart(String token) {
         return webClient.get()
-                .uri("/api/cart")
+                .uri("/api/carts")
                 .header("Authorization", "Bearer " + token)
                 .retrieve()
                 .bodyToMono(CartDto.class);
@@ -26,7 +26,7 @@ public class CartClient {
 
     public Mono<Void> clearCart(String token) {
         return webClient.delete()
-                .uri("/api/cart")
+                .uri("/api/carts")
                 .header("Authorization", "Bearer " + token)
                 .retrieve()
                 .bodyToMono(Void.class);
@@ -34,7 +34,7 @@ public class CartClient {
     
     public Mono<Void> restoreCart(String token, CartDto cartBackup) {
         return webClient.post()
-                .uri("/api/cart/restore")
+                .uri("/api/carts/restore")
                 .header("Authorization", "Bearer " + token)
                 .bodyValue(cartBackup)
                 .retrieve()

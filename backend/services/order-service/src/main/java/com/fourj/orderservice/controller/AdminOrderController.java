@@ -23,7 +23,7 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/admin/orders")
+@RequestMapping("/api/orders/admin")
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('admin:access')")
 public class AdminOrderController {

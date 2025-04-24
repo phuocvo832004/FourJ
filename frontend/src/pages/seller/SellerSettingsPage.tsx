@@ -39,7 +39,7 @@ const SellerSettingsPage: React.FC = () => {
   const { data: profile, isLoading } = useQuery({
     queryKey: ['sellerProfile'],
     queryFn: async () => {
-      const response = await axios.get('/api/seller/profile');
+      const response = await axios.get('/api/users/seller/profile');
       const data = response.data as SellerProfile;
       
       // Set form values
@@ -62,7 +62,7 @@ const SellerSettingsPage: React.FC = () => {
   
   const updateProfileMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await axios.put('/api/seller/profile', data, {
+      const response = await axios.put('/api/users/seller/profile', data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

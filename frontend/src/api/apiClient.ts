@@ -4,7 +4,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:80';
 const API_VERSION = import.meta.env.VITE_API_VERSION || '/api';
 
 // API công khai không cần token
-const PUBLIC_API_PATHS = ['/products', '/categories'];
+const PUBLIC_API_PATHS = [
+  '/products', 
+  '/categories', 
+  '/search/products', 
+  '/search/suggestions'
+];
 
 // Thời gian mặc định cho cache là 5 phút
 const DEFAULT_CACHE_TIME = 5 * 60 * 1000;

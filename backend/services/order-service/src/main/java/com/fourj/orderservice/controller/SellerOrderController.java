@@ -26,7 +26,7 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/seller/orders")
+@RequestMapping("/api/orders/seller")
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('seller:access')")
 public class SellerOrderController {

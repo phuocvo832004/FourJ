@@ -33,7 +33,7 @@ const SellerDashboardPage: React.FC = () => {
         setSellerLoading(true);
         
         // Fetch seller profile
-        const profileResponse = await fetch('/api/seller/profile');
+        const profileResponse = await fetch('/api/users/seller/profile');
         if (!profileResponse.ok) {
           throw new Error('Failed to load seller profile');
         }
@@ -57,7 +57,7 @@ const SellerDashboardPage: React.FC = () => {
         setTopProducts(productsData);
         
         // Fetch statistics
-        const statsResponse = await fetch('/api/seller/stats');
+        const statsResponse = await fetch('/api/seller/orders/stats');
         if (!statsResponse.ok) {
           throw new Error('Failed to load statistics');
         }

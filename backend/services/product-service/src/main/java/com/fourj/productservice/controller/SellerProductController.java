@@ -19,7 +19,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/seller/products")
+@RequestMapping("/api/products/seller")
 @Slf4j
 @PreAuthorize("hasAuthority('seller:access')")
 public class SellerProductController {

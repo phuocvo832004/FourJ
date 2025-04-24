@@ -1,19 +1,25 @@
 import apiClient from './apiClient';
+import { PageResponse } from '../types/api';
 
 // API endpoints for orders
 const orderEndpoints = {
-  getAllOrders: '/orders/admin',
-  getOrderById: (id: string) => `/orders/${id}`,
+  getAllOrdersAdmin: '/orders/admin',
+  getOrderByIdAdmin: (id: string) => `/orders/admin/${id}`,
   getUserOrders: '/orders/my-orders',
   createOrder: '/orders',
   cancelOrder: (id: string) => `/orders/${id}/cancel`,
-  updateOrderStatus: (id: string) => `/orders/${id}/status`,
-  getOrdersByStatus: (status: string) => `/orders/admin/status/${status}`,
+  updateOrderStatusAdmin: (id: string) => `/orders/admin/${id}/status`,
+  getOrdersByDateRangeAdmin: '/orders/admin/by-date-range',
+  getOrdersByUserAdmin: (userId: string) => `/orders/admin/user/${userId}`,
+  getOrdersBySellerAdmin: (sellerId: string) => `/orders/admin/seller/${sellerId}`,
+  getAdminOrderStats: '/orders/admin/stats',
+  getAdminDashboardData: '/orders/admin/dashboard',
   getSellerOrders: '/orders/seller',
-  getSellerOrdersByStatus: (status: string) => `/orders/seller/status/${status}`,
-  getSellerOrderStatistics: '/orders/seller/statistics',
-  getAdminOrderStatistics: '/orders/admin/statistics',
-  getDashboardStatistics: '/orders/admin/dashboard',
+  getSellerOrderById: (id: string) => `/orders/seller/${id}`,
+  updateOrderStatusSeller: (id: string) => `/orders/seller/${id}/status`,
+  getSellerOrdersByDateRange: '/orders/seller/by-date-range',
+  getSellerOrderStats: '/orders/seller/stats',
+  getSellerDashboardData: '/orders/seller/dashboard',
   getOrderByNumber: (orderNumber: string) => `/orders/number/${orderNumber}`
 };
 
@@ -25,8 +31,8 @@ export interface OrderDto {
   status: string;
   totalAmount: number;
   items: OrderItemDto[];
-  shippingAddress: ShippingAddressDto;
-  paymentInfo: PaymentInfoDto;
+  shippingAddress: ShippingAddressDto | string;
+  paymentInfo?: PaymentInfoDto;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -56,8 +62,13 @@ export interface PaymentInfoDto {
 }
 
 export interface CreateOrderRequest {
-  items: OrderItemDto[];
-  shippingAddress: ShippingAddressDto;
+  items: {
+    productId: number;
+    productName: string;
+    quantity: number;
+    price: number;
+  }[];
+  shippingAddress: string;
   paymentMethod: string;
   notes?: string;
 }
@@ -67,86 +78,101 @@ export interface UpdateOrderStatusRequest {
 }
 
 export interface OrderStatisticsDto {
-  totalOrders: number;
-  pendingOrders: number;
-  processingOrders: number;
-  shippedOrders: number;
-  deliveredOrders: number;
-  completedOrders: number;
-  cancelledOrders: number;
-  totalRevenue: number;
-  avgOrderValue: number;
-  completionRate: number;
-  cancellationRate: number;
-  orderCountByDay: Record<string, number>;
-  revenueByDay: Record<string, number>;
+  totalOrders?: number;
+  pendingOrders?: number;
+  processingOrders?: number;
+  shippedOrders?: number;
+  deliveredOrders?: number;
+  completedOrders?: number;
+  cancelledOrders?: number;
+  totalRevenue?: number;
+  avgOrderValue?: number;
+  completionRate?: number;
+  cancellationRate?: number;
+  orderCountByDay?: Record<string, number>;
+  revenueByDay?: Record<string, number>;
+}
+
+export interface DateRangeParams {
+  startDate: string;
+  endDate: string;
 }
 
 // Order API functions
 export const orderApi = {
   // Customer APIs
-  getUserOrders: async () => {
-    return apiClient.get(orderEndpoints.getUserOrders);
+  getUserOrders: async (page = 0, size = 10) => {
+    return apiClient.get<PageResponse<OrderDto>>(orderEndpoints.getUserOrders, { params: { page, size } });
   },
 
   getOrderById: async (id: string) => {
-    return apiClient.get(orderEndpoints.getOrderById(id));
+    return apiClient.get<OrderDto>(orderEndpoints.getOrderByIdAdmin(id));
   },
 
   getOrderByNumber: async (orderNumber: string) => {
-    return apiClient.get(orderEndpoints.getOrderByNumber(orderNumber));
+    return apiClient.get<OrderDto>(orderEndpoints.getOrderByNumber(orderNumber));
   },
 
   createOrder: async (orderData: CreateOrderRequest) => {
-    return apiClient.post(orderEndpoints.createOrder, orderData);
+    return apiClient.post<OrderDto>(orderEndpoints.createOrder, orderData);
   },
 
   cancelOrder: async (id: string) => {
-    return apiClient.post(orderEndpoints.cancelOrder(id));
+    return apiClient.delete<void>(orderEndpoints.cancelOrder(id));
   },
 
   // Seller APIs
   getSellerOrders: async (page = 0, size = 10) => {
-    return apiClient.get(orderEndpoints.getSellerOrders, {
-      params: { page, size }
-    });
+    return apiClient.get<PageResponse<OrderDto>>(orderEndpoints.getSellerOrders, { params: { page, size } });
   },
 
-  getSellerOrdersByStatus: async (status: string, page = 0, size = 10) => {
-    return apiClient.get(orderEndpoints.getSellerOrdersByStatus(status), {
-      params: { page, size }
-    });
+  getSellerOrderById: async (id: string) => {
+    return apiClient.get<OrderDto>(orderEndpoints.getSellerOrderById(id));
   },
 
-  getSellerOrderStatistics: async () => {
-    return apiClient.get(orderEndpoints.getSellerOrderStatistics);
+  updateOrderStatusSeller: async (id: string, statusData: UpdateOrderStatusRequest) => {
+    return apiClient.put<OrderDto>(orderEndpoints.updateOrderStatusSeller(id), statusData);
+  },
+
+  getSellerOrdersByDateRange: async (params: DateRangeParams, page = 0, size = 10) => {
+    return apiClient.get<PageResponse<OrderDto>>(orderEndpoints.getSellerOrdersByDateRange, { params: { ...params, page, size } });
+  },
+
+  getSellerOrderStats: async () => {
+    return apiClient.get<OrderStatisticsDto>(orderEndpoints.getSellerOrderStats);
+  },
+
+  getSellerDashboardData: async () => {
+    return apiClient.get<unknown>(orderEndpoints.getSellerDashboardData);
   },
 
   // Admin APIs
-  getAllOrders: async (page = 0, size = 10) => {
-    return apiClient.get(orderEndpoints.getAllOrders, {
-      params: { page, size }
-    });
+  getAllOrdersAdmin: async (page = 0, size = 10) => {
+    return apiClient.get<PageResponse<OrderDto>>(orderEndpoints.getAllOrdersAdmin, { params: { page, size } });
   },
 
-  getOrdersByStatus: async (status: string, page = 0, size = 10) => {
-    return apiClient.get(orderEndpoints.getOrdersByStatus(status), {
-      params: { page, size }
-    });
+  getOrdersByDateRangeAdmin: async (params: DateRangeParams, page = 0, size = 10) => {
+    return apiClient.get<PageResponse<OrderDto>>(orderEndpoints.getOrdersByDateRangeAdmin, { params: { ...params, page, size } });
   },
 
-  getAdminOrderStatistics: async () => {
-    return apiClient.get(orderEndpoints.getAdminOrderStatistics);
+  getOrdersByUserAdmin: async (userId: string, page = 0, size = 10) => {
+    return apiClient.get<PageResponse<OrderDto>>(orderEndpoints.getOrdersByUserAdmin(userId), { params: { page, size } });
   },
 
-  getDashboardStatistics: async (startDate: string, endDate: string) => {
-    return apiClient.get(orderEndpoints.getDashboardStatistics, {
-      params: { startDate, endDate }
-    });
+  getOrdersBySellerAdmin: async (sellerId: string, page = 0, size = 10) => {
+    return apiClient.get<PageResponse<OrderDto>>(orderEndpoints.getOrdersBySellerAdmin(sellerId), { params: { page, size } });
   },
 
-  updateOrderStatus: async (id: string, statusData: UpdateOrderStatusRequest) => {
-    return apiClient.put(orderEndpoints.updateOrderStatus(id), statusData);
+  getAdminOrderStats: async () => {
+    return apiClient.get<OrderStatisticsDto>(orderEndpoints.getAdminOrderStats);
+  },
+
+  getAdminDashboardData: async () => {
+    return apiClient.get<unknown>(orderEndpoints.getAdminDashboardData);
+  },
+
+  updateOrderStatusAdmin: async (id: string, statusData: UpdateOrderStatusRequest) => {
+    return apiClient.put<OrderDto>(orderEndpoints.updateOrderStatusAdmin(id), statusData);
   }
 };
 

@@ -17,7 +17,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/admin/products")
+@RequestMapping("/api/products/admin")
 @Slf4j
 @PreAuthorize("hasAuthority('admin:access')")
 public class AdminProductController {

@@ -157,7 +157,7 @@ export const useSellerOrderStatistics = () => {
   const fetchStatistics = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await orderApi.getSellerOrderStatistics();
+      const response = await orderApi.getSellerOrderStats();
       setStatistics(response.data);
       setError(null);
     } catch (err: unknown) {
@@ -186,7 +186,7 @@ export const useAdminOrderStatistics = () => {
   const fetchStatistics = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await orderApi.getAdminOrderStatistics();
+      const response = await orderApi.getAdminOrderStats();
       setStatistics(response.data);
       setError(null);
     } catch (err: unknown) {
@@ -216,15 +216,14 @@ export const useSellerOrders = (page = 0, size = 10, status?: string) => {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      let response;
+      const response = await orderApi.getSellerOrders(page, size);
       
+      let filteredOrders = response.data.content || [];
       if (status) {
-        response = await orderApi.getSellerOrdersByStatus(status, page, size);
-      } else {
-        response = await orderApi.getSellerOrders(page, size);
+        filteredOrders = filteredOrders.filter(order => order.status === status);
       }
-      
-      setOrders(response.data.content || []);
+
+      setOrders(filteredOrders);
       setTotalPages(response.data.totalPages || 1);
       setError(null);
     } catch (err: unknown) {
@@ -254,15 +253,14 @@ export const useAdminOrders = (page = 0, size = 10, status?: string) => {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      let response;
+      const response = await orderApi.getAllOrdersAdmin(page, size);
       
+      let filteredOrders = response.data.content || [];
       if (status) {
-        response = await orderApi.getOrdersByStatus(status, page, size);
-      } else {
-        response = await orderApi.getAllOrders(page, size);
+        filteredOrders = filteredOrders.filter(order => order.status === status);
       }
-      
-      setOrders(response.data.content || []);
+
+      setOrders(filteredOrders);
       setTotalPages(response.data.totalPages || 1);
       setError(null);
     } catch (err: unknown) {
@@ -281,7 +279,7 @@ export const useAdminOrders = (page = 0, size = 10, status?: string) => {
 
   const updateOrderStatus = async (orderId: string, status: string) => {
     try {
-      await orderApi.updateOrderStatus(orderId, { status });
+      await orderApi.updateOrderStatusAdmin(orderId, { status });
       await fetchOrders();
       return true;
     } catch (err: unknown) {
@@ -304,8 +302,8 @@ export const useDashboardStatistics = (startDate: string, endDate: string) => {
   const fetchStatistics = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await orderApi.getDashboardStatistics(startDate, endDate);
-      setStatistics(response.data);
+      const response = await orderApi.getAdminDashboardData();
+      setStatistics(response.data as DashboardStatistics | null);
       setError(null);
     } catch (err: unknown) {
       const apiError = err as ApiError;
@@ -315,7 +313,8 @@ export const useDashboardStatistics = (startDate: string, endDate: string) => {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+    console.log('startDate:', startDate, 'endDate:', endDate);
+  }, []);
 
   useEffect(() => {
     fetchStatistics();

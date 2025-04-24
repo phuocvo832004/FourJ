@@ -18,7 +18,7 @@ import org.springframework.http.HttpStatus;
 import java.util.Set;
 
 @RestController
-@RequestMapping("/users/me")
+
 @Slf4j
 public class AuthorizationController {
 

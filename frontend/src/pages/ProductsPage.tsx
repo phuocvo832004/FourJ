@@ -11,18 +11,26 @@ interface PriceRange {
   max: number | null;
 }
 
-interface PaginationResult {
-  totalElements: number;
-  totalPages: number;
-  currentPage: number;
-  size: number;
-  isFirst: boolean;
-  isLast: boolean;
-}
+// interface PaginationResult { // Xóa interface này
+//   totalElements: number;
+//   totalPages: number;
+//   currentPage: number;
+//   size: number;
+//   isFirst: boolean;
+//   isLast: boolean;
+// }
 
-interface ProductsResult {
+// Định nghĩa kiểu cho kết quả trả về từ getPublicProducts
+interface PublicProductsResponse {
   products: Product[];
-  pagination: PaginationResult;
+  pagination: {
+    last: boolean;
+    number: number;
+    totalElements: number; // Thêm các trường cần thiết khác
+    totalPages: number;
+    size: number;
+    first: boolean;
+  };
 }
 
 const ProductsPage: React.FC = () => {
@@ -31,7 +39,7 @@ const ProductsPage: React.FC = () => {
     loading, 
     error, 
     getCategories,
-    getProductsPaginated
+    getPublicProducts // Rename here
   } = useProduct();
   
   const navigate = useNavigate();
@@ -72,18 +80,20 @@ const ProductsPage: React.FC = () => {
     try {
       loadingRef.current = true;
       const pageSize = 12;
-      const result = await getProductsPaginated(initialPage, pageSize) as ProductsResult;
+      // Ép kiểu kết quả trả về
+      const result = await getPublicProducts(initialPage, pageSize) as PublicProductsResponse;
       setCurrentProducts(result.products);
-      setIsLastPage(result.pagination.isLast);
-      setPage(initialPage);
+      // Truy cập các trường pagination từ result.pagination
+      setIsLastPage(result.pagination.last);
+      setPage(result.pagination.number); // Sử dụng result.pagination.number
       setInitialLoaded(true);
-      currentPageRef.current = initialPage;
+      currentPageRef.current = result.pagination.number; // Cập nhật ref
     } catch (err) {
       console.error("Error loading initial products:", err);
     } finally {
       loadingRef.current = false;
     }
-  }, [getProductsPaginated, initialPage, initialLoaded]);
+  }, [getPublicProducts, initialPage, initialLoaded]);
 
   useEffect(() => {
     // Nếu URL query parameter page thay đổi, load products cho trang đó
@@ -119,25 +129,26 @@ const ProductsPage: React.FC = () => {
         return;
       }
       
-      const result = await getProductsPaginated(nextPage, pageSize) as ProductsResult;
+      // Ép kiểu kết quả trả về
+      const result = await getPublicProducts(nextPage, pageSize) as PublicProductsResponse;
       
       setCurrentProducts(prev => {
-        // Chỉ thêm mới các sản phẩm có ID chưa tồn tại
         const existingIds = new Set(prev.map(p => p.id));
-        const newProducts = result.products.filter(p => !existingIds.has(p.id));
+        // Thêm kiểu Product cho p
+        const newProducts = result.products.filter((p: Product) => !existingIds.has(p.id)); 
         return [...prev, ...newProducts];
       });
       
-      setIsLastPage(result.pagination.isLast);
-      setPage(nextPage);
-      currentPageRef.current = nextPage;
+      setIsLastPage(result.pagination.last);
+      setPage(result.pagination.number); // Sử dụng result.pagination.number
+      currentPageRef.current = result.pagination.number; // Cập nhật ref
     } catch (err) {
       console.error("Error loading more products:", err);
     } finally {
       setLoadingMore(false);
       loadingRef.current = false;
     }
-  }, [isLastPage, loadingMore, page, currentProducts.length, navigate, getProductsPaginated]);
+  }, [isLastPage, loadingMore, page, currentProducts.length, navigate, getPublicProducts]); // Update dependency array
 
   // Memoize applyFilters function để ngăn render không cần thiết
   const applyFilters = useCallback(() => {
