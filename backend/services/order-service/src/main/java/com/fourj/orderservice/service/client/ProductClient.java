@@ -36,4 +36,16 @@ public class ProductClient {
                 .bodyToFlux(ProductDto.class)
                 .collectList();
     }
+    
+    public Mono<Boolean> updateStockQuantity(String productId, int quantity) {
+        return webClient.put()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/products/{id}/stock")
+                        .queryParam("quantity", quantity)
+                        .build(productId))
+                .retrieve()
+                .toBodilessEntity()
+                .map(response -> response.getStatusCode().is2xxSuccessful())
+                .onErrorReturn(false);
+    }
 } 

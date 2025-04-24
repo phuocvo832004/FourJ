@@ -24,4 +24,7 @@ public interface ProductService {
     // Các phương thức mới dành cho admin
     Page<ProductDto> getProductsByActiveStatus(boolean active, Pageable pageable);
     Page<ProductDto> getAllProductsIncludeInactive(Pageable pageable);
+    
+    // Phương thức giảm số lượng tồn kho sau khi thanh toán
+    boolean updateStockQuantity(Long productId, int quantity);
 }

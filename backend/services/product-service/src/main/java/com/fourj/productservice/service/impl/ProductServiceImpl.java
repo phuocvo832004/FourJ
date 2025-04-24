@@ -296,4 +296,42 @@ public class ProductServiceImpl implements ProductService {
         return productRepository.findByCategoryIdAndSellerIdAndActiveTrue(categoryId, sellerId, pageable)
                 .map(this::mapToDto);
     }
+
+    @Override
+    @Transactional
+    public boolean updateStockQuantity(Long productId, int quantity) {
+        try {
+            Product product = productRepository.findById(productId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm không tồn tại với id: " + productId));
+            
+            int currentStock = product.getStockQuantity();
+            
+            if (currentStock < quantity) {
+                log.error("Không đủ số lượng sản phẩm {} trong kho. Yêu cầu: {}, Hiện có: {}", 
+                          productId, quantity, currentStock);
+                return false;
+            }
+            
+            product.setStockQuantity(currentStock - quantity);
+            productRepository.save(product);
+            
+            // Phát sự kiện sản phẩm được cập nhật
+            try {
+                ProductDto productDto = mapToDto(product);
+                eventPublisher.publishProductUpdated(productDto);
+                log.info("Đã cập nhật số lượng tồn kho của sản phẩm ID: {}, giảm: {}, còn lại: {}", 
+                         productId, quantity, product.getStockQuantity());
+            } catch (Exception e) {
+                log.error("Không thể phát sự kiện cập nhật sản phẩm cho ID: {}", productId, e);
+            }
+            
+            return true;
+        } catch (ResourceNotFoundException e) {
+            log.error("Không tìm thấy sản phẩm khi cập nhật số lượng tồn kho: {}", e.getMessage());
+            return false;
+        } catch (Exception e) {
+            log.error("Lỗi khi cập nhật số lượng tồn kho cho sản phẩm {}: {}", productId, e.getMessage());
+            return false;
+        }
+    }
 }

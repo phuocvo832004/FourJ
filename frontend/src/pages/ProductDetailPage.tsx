@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import product1Image from '../assets/product-1.jpg';
 import { useCart } from '../hooks/useCart';
 import { formatCurrency } from '../utils/formatters';
 import { useProduct } from '../hooks/useProduct';
-import { Product } from '../types';
 
 // Interface chuẩn cho sản phẩm trong ứng dụng
 interface ApiProduct {
@@ -31,52 +30,42 @@ const ProductDetailPage: React.FC = () => {
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const { addItem } = useCart();
-  const [product, setProduct] = useState<ApiProduct | null>(null);
-  const [isLoadingProduct, setIsLoadingProduct] = useState(true);
-  const [productError, setProductError] = useState<string | null>(null);
-  const { getProductById } = useProduct();
-
-  // Cache cho việc load sản phẩm để ngăn gọi API nhiều lần
-  const fetchProduct = useCallback(async () => {
-    if (!id) return;
-    
-    setIsLoadingProduct(true);
-    setProductError(null);
-    
-    try {
-      // Sử dụng hook useProduct đã tối ưu để lấy sản phẩm và tận dụng cache
-      const productData = await getProductById(id) as Product;
-      
-      // Chuyển đổi từ response format sang ApiProduct format
-      const normalizedProduct: ApiProduct = {
-        id: parseInt(productData.id),
-        name: productData.name,
-        price: productData.price,
-        description: productData.description,
-        imageUrl: productData.image,
-        // Lưu trữ cả hai định dạng của danh mục để đảm bảo tương thích
-        categoryName: productData.category,
-        categoryId: productData.categoryId,
-        category: productData.categoryId ? { 
-          id: productData.categoryId, 
-          name: productData.category 
-        } : undefined,
-        stockQuantity: 10, // Mặc định hoặc lấy từ API nếu có
-        isActive: true // Mặc định hoặc lấy từ API nếu có
-      };
-      
-      setProduct(normalizedProduct);
-    } catch (error) {
-      console.error('Error fetching product:', error);
-      setProductError('Không thể tải thông tin sản phẩm. Vui lòng thử lại sau.');
-    } finally {
-      setIsLoadingProduct(false);
-    }
-  }, [id, getProductById]);
+  const { usePublicProductById } = useProduct();
   
+  // Sử dụng React Query hook để lấy dữ liệu sản phẩm
+  const { data: productData, isLoading, error } = usePublicProductById(id);
+  
+  // Chuẩn hóa dữ liệu sản phẩm
+  const product = useMemo(() => {
+    if (!productData) return null;
+    
+    // Chuyển đổi từ response format sang ApiProduct format
+    return {
+      id: parseInt(productData.id),
+      name: productData.name,
+      price: productData.price,
+      description: productData.description,
+      imageUrl: productData.image,
+      // Lưu trữ cả hai định dạng của danh mục để đảm bảo tương thích
+      categoryName: productData.category,
+      categoryId: productData.categoryId,
+      category: productData.categoryId ? { 
+        id: productData.categoryId, 
+        name: productData.category 
+      } : undefined,
+      stockQuantity: productData.stockQuantity, 
+      isActive: productData.isActive
+    } as ApiProduct;
+  }, [productData]);
+
+  // Prefetch related products khi load xong sản phẩm chính
   useEffect(() => {
-    fetchProduct();
-  }, [fetchProduct]);
+    // Ví dụ: Có thể prefetch các sản phẩm liên quan dựa trên category
+    if (product?.categoryId) {
+      // Giả sử có API lấy sản phẩm tương tự
+      // prefetchRelatedProducts(product.categoryId);
+    }
+  }, [product]);
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -99,11 +88,13 @@ const ProductDetailPage: React.FC = () => {
       // Thêm các thuộc tính bắt buộc của CartItem
       productId: product.id.toString(),
       productName: product.name,
-      productImage: imageUrl
+      productImage: imageUrl,
+      stockQuantity: product.stockQuantity,
+      isActive: product.isActive
     });
   };
 
-  if (isLoadingProduct) {
+  if (isLoading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="flex justify-center items-center min-h-[300px]">
@@ -113,10 +104,10 @@ const ProductDetailPage: React.FC = () => {
     );
   }
 
-  if (productError || !product) {
+  if (error || !product) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-12 text-center text-red-500">
-        {productError || 'Không tìm thấy sản phẩm'}
+        {error instanceof Error ? error.message : 'Không tìm thấy sản phẩm'}
         <div className="mt-4">
           <button 
             onClick={() => navigate('/products')}

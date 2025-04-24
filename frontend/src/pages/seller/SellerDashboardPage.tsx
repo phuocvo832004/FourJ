@@ -32,32 +32,39 @@ const SellerDashboardPage: React.FC = () => {
       try {
         setSellerLoading(true);
         
-        // Fetch seller profile
-        const profileResponse = await fetch('/api/users/seller/profile');
+        // Lấy token từ localStorage
+        const token = localStorage.getItem('auth_token');
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        };
+        
+        // Fetch seller profile với header xác thực
+        const profileResponse = await fetch('/api/users/seller/profile', { headers });
         if (!profileResponse.ok) {
           throw new Error('Failed to load seller profile');
         }
         const profileData = await profileResponse.json();
         setSeller(profileData);
         
-        // Fetch recent orders
-        const ordersResponse = await fetch('/api/seller/orders/recent');
+        // Fetch recent orders với header xác thực
+        const ordersResponse = await fetch('/api/seller/orders/recent', { headers });
         if (!ordersResponse.ok) {
           throw new Error('Failed to load recent orders');
         }
         const ordersData = await ordersResponse.json();
         setRecentOrders(ordersData);
         
-        // Fetch top products
-        const productsResponse = await fetch('/api/seller/products/top');
+        // Fetch top products với header xác thực
+        const productsResponse = await fetch('/api/seller/products/top', { headers });
         if (!productsResponse.ok) {
           throw new Error('Failed to load top products');
         }
         const productsData = await productsResponse.json();
         setTopProducts(productsData);
         
-        // Fetch statistics
-        const statsResponse = await fetch('/api/seller/orders/stats');
+        // Fetch statistics với header xác thực
+        const statsResponse = await fetch('/api/seller/orders/stats', { headers });
         if (!statsResponse.ok) {
           throw new Error('Failed to load statistics');
         }
@@ -140,6 +147,8 @@ const SellerDashboardPage: React.FC = () => {
             image: 'https://via.placeholder.com/200',
             category: 'Electronics',
             sellerId: '1',
+            stockQuantity: 10,
+            isActive: true,
           },
           {
             id: 'prod2',
@@ -149,6 +158,8 @@ const SellerDashboardPage: React.FC = () => {
             image: 'https://via.placeholder.com/200',
             category: 'Fashion',
             sellerId: '1',
+            stockQuantity: 10,
+            isActive: true,
           },
         ]);
         
@@ -223,11 +234,11 @@ const SellerDashboardPage: React.FC = () => {
 
   // Chart data for orders by day
   const orderLineChartData = {
-    labels: statistics ? Object.keys(statistics.orderCountByDay).map(date => formatDate(date)) : [],
+    labels: statistics && statistics.orderCountByDay ? Object.keys(statistics.orderCountByDay).map(date => formatDate(date)) : [],
     datasets: [
       {
         label: 'Số đơn hàng',
-        data: statistics ? Object.values(statistics.orderCountByDay) : [],
+        data: statistics && statistics.orderCountByDay ? Object.values(statistics.orderCountByDay) : [],
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.5)',
         tension: 0.3,
@@ -237,11 +248,11 @@ const SellerDashboardPage: React.FC = () => {
 
   // Chart data for revenue by day
   const revenueLineChartData = {
-    labels: statistics ? Object.keys(statistics.revenueByDay).map(date => formatDate(date)) : [],
+    labels: statistics && statistics.revenueByDay ? Object.keys(statistics.revenueByDay).map(date => formatDate(date)) : [],
     datasets: [
       {
         label: 'Doanh thu (VND)',
-        data: statistics ? Object.values(statistics.revenueByDay) : [],
+        data: statistics && statistics.revenueByDay ? Object.values(statistics.revenueByDay) : [],
         borderColor: 'rgb(16, 185, 129)',
         backgroundColor: 'rgba(16, 185, 129, 0.5)',
         tension: 0.3,

@@ -6,6 +6,7 @@ const orderEndpoints = {
   getAllOrdersAdmin: '/orders/admin',
   getOrderByIdAdmin: (id: string) => `/orders/admin/${id}`,
   getUserOrders: '/orders/my-orders',
+  getOrderById: (id: string) => `/orders/${id}`,
   createOrder: '/orders',
   cancelOrder: (id: string) => `/orders/${id}/cancel`,
   updateOrderStatusAdmin: (id: string) => `/orders/admin/${id}/status`,
@@ -106,7 +107,7 @@ export const orderApi = {
   },
 
   getOrderById: async (id: string) => {
-    return apiClient.get<OrderDto>(orderEndpoints.getOrderByIdAdmin(id));
+    return apiClient.get<OrderDto>(orderEndpoints.getOrderById(id));
   },
 
   getOrderByNumber: async (orderNumber: string) => {

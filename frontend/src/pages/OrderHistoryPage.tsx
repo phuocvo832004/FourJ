@@ -3,16 +3,24 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-hooks';
 import ErrorNotification from '../components/ErrorNotification';
 import { formatDateTime } from '../utils/formatters';
-import { useUserOrders } from '../hooks/useOrder';
+import { useUserOrdersQuery } from '../hooks/useOrderQueries';
 
 const OrderHistoryPage: React.FC = () => {
-  const { isAuthenticated, isLoading, getToken } = useAuth();
-  const { orders, loading: isLoadingOrders, error, refetch } = useUserOrders();
+  const { isAuthenticated, isLoading: isAuthLoading, getToken } = useAuth();
+  const { 
+    data, 
+    isLoading: isOrdersLoading, 
+    error, 
+    refetch 
+  } = useUserOrdersQuery();
+  
+  // Destructuring data với default values
+  const { orders = [], totalPages = 1 } = data || {};
 
   // Lấy token và lưu vào localStorage trước khi tải đơn hàng
   useEffect(() => {
     const fetchToken = async () => {
-      if (isAuthenticated && !isLoading) {
+      if (isAuthenticated && !isAuthLoading) {
         const token = await getToken();
         if (token) {
           console.log('Token đã được lưu vào localStorage, độ dài:', token.length);
@@ -23,7 +31,7 @@ const OrderHistoryPage: React.FC = () => {
     };
 
     fetchToken();
-  }, [isAuthenticated, isLoading, getToken]);
+  }, [isAuthenticated, isAuthLoading, getToken]);
 
   const handleRetry = async () => {
     // Lấy lại token trước khi thử lại
@@ -33,7 +41,7 @@ const OrderHistoryPage: React.FC = () => {
     refetch();
   };
 
-  if (isLoading || (isLoadingOrders && !error)) {
+  if (isAuthLoading || (isOrdersLoading && !error)) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex justify-center items-center h-64">
@@ -60,7 +68,7 @@ const OrderHistoryPage: React.FC = () => {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-semibold mb-6">Lịch sử đơn hàng</h1>
-        <ErrorNotification message={error} onClose={() => {}} />
+        <ErrorNotification message={error instanceof Error ? error.message : 'Đã xảy ra lỗi'} onClose={() => {}} />
         <div className="bg-white rounded-lg shadow-md p-8 text-center">
           <p className="text-xl text-gray-600 mb-4">Không thể tải lịch sử đơn hàng</p>
           <button 
@@ -132,7 +140,7 @@ const OrderHistoryPage: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-semibold">Lịch sử đơn hàng</h1>
         <button 
-          onClick={refetch}
+          onClick={() => refetch()}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm"
         >
           Làm mới
@@ -177,7 +185,9 @@ const OrderHistoryPage: React.FC = () => {
               <div className="border-t border-gray-200 mt-4 pt-4 flex flex-col md:flex-row md:justify-between md:items-center">
                 <div>
                   <p className="text-gray-600">Tổng tiền: <span className="font-semibold text-gray-900">{order.totalAmount.toLocaleString()} VND</span></p>
-                  <p className="text-gray-600">Phương thức thanh toán: <span className="font-medium">{order.paymentInfo.paymentMethod}</span></p>
+                  {order.paymentInfo && (
+                    <p className="text-gray-600">Phương thức thanh toán: <span className="font-medium">{order.paymentInfo.paymentMethod}</span></p>
+                  )}
                 </div>
                 <div className="mt-3 md:mt-0 flex space-x-2">
                   <Link 
@@ -200,6 +210,27 @@ const OrderHistoryPage: React.FC = () => {
           </div>
         ))}
       </div>
+      
+      {/* Phân trang - nếu có nhiều trang */}
+      {totalPages > 1 && (
+        <div className="mt-8 flex justify-center">
+          <nav className="flex items-center space-x-2">
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i}
+                className={`px-3 py-2 rounded-md ${
+                  i === 0 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+                onClick={() => {
+                  // Implement pagination logic here when needed
+                }}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </nav>
+        </div>
+      )}
     </div>
   );
 };

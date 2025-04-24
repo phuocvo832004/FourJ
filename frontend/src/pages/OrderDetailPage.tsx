@@ -192,9 +192,11 @@ const OrderDetailPage: React.FC = () => {
               <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-2 ${getStatusColor(order.status)}`}>
                 {getStatusText(order.status)}
               </span>
-              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getPaymentStatusColor(order.paymentInfo.paymentStatus)}`}>
-                {getPaymentStatusText(order.paymentInfo.paymentStatus)}
-              </span>
+              {order.paymentInfo && (
+                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getPaymentStatusColor(order.paymentInfo.paymentStatus)}`}>
+                  {getPaymentStatusText(order.paymentInfo.paymentStatus)}
+                </span>
+              )}
             </div>
           </div>
           
@@ -203,17 +205,21 @@ const OrderDetailPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <h3 className="text-lg font-medium mb-2">Địa chỉ giao hàng</h3>
-                <p className="text-gray-700">{order.shippingAddress.address}</p>
+                <p className="text-gray-700">{typeof order.shippingAddress === 'string' ? order.shippingAddress : order.shippingAddress.address}</p>
               </div>
               
               <div>
                 <h3 className="text-lg font-medium mb-2">Phương thức thanh toán</h3>
-                <p className="text-gray-700">{getPaymentMethodName(order.paymentInfo.paymentMethod)}</p>
-                {order.paymentInfo.transactionId && (
-                  <p className="text-gray-500 text-sm">Mã giao dịch: {order.paymentInfo.transactionId}</p>
-                )}
-                {order.paymentInfo.paymentDate && (
-                  <p className="text-gray-500 text-sm">Ngày thanh toán: {formatDateTime(order.paymentInfo.paymentDate)}</p>
+                {order.paymentInfo && (
+                  <>
+                    <p className="text-gray-700">{getPaymentMethodName(order.paymentInfo.paymentMethod)}</p>
+                    {order.paymentInfo.transactionId && (
+                      <p className="text-gray-500 text-sm">Mã giao dịch: {order.paymentInfo.transactionId}</p>
+                    )}
+                    {order.paymentInfo.paymentDate && (
+                      <p className="text-gray-500 text-sm">Ngày thanh toán: {formatDateTime(order.paymentInfo.paymentDate)}</p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -288,10 +294,10 @@ const OrderDetailPage: React.FC = () => {
               </button>
             )}
             
-            {(order.paymentInfo.paymentMethod !== 'COD' && order.paymentInfo.paymentStatus === 'PENDING' && order.status !== 'CANCELLED') && (
+            {order.paymentInfo && order.paymentInfo.paymentMethod !== 'COD' && order.paymentInfo.paymentStatus === 'PENDING' && order.status !== 'CANCELLED' && (
               <button
                 onClick={() => {
-                  if (order.paymentInfo.checkoutUrl) {
+                  if (order.paymentInfo && order.paymentInfo.checkoutUrl) {
                     setIsProcessingPayment(true);
                     window.location.href = order.paymentInfo.checkoutUrl;
                   }

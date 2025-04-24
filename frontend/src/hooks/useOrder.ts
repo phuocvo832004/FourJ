@@ -314,7 +314,7 @@ export const useDashboardStatistics = (startDate: string, endDate: string) => {
       setLoading(false);
     }
     console.log('startDate:', startDate, 'endDate:', endDate);
-  }, []);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     fetchStatistics();

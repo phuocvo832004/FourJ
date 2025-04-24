@@ -475,6 +475,9 @@ public class OrderServiceImpl implements OrderService {
                 if (order.getStatus() == OrderStatus.PENDING) {
                     order.setStatus(OrderStatus.PROCESSING);
                     log.info("Cập nhật trạng thái đơn hàng thành PROCESSING sau khi thanh toán thành công");
+                    
+                    // Giảm số lượng tồn kho sau khi thanh toán thành công
+                    updateProductStock(order);
                 } else {
                     log.info("Giữ nguyên trạng thái đơn hàng {} vì đã không còn ở trạng thái PENDING", order.getStatus());
                 }
@@ -507,6 +510,28 @@ public class OrderServiceImpl implements OrderService {
             log.error("Không tìm thấy đơn hàng từ webhook: {}", data.getOrderCode());
         } catch (Exception e) {
             log.error("Lỗi khi xử lý webhook PayOS: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Cập nhật số lượng tồn kho cho các sản phẩm trong đơn hàng
+     */
+    private void updateProductStock(Order order) {
+        for (OrderItem item : order.getItems()) {
+            productClient.updateStockQuantity(String.valueOf(item.getProductId()), item.getQuantity())
+                .subscribe(
+                    success -> {
+                        if (success) {
+                            log.info("Đã giảm số lượng tồn kho cho sản phẩm ID: {}, số lượng: {}", 
+                                      item.getProductId(), item.getQuantity());
+                        } else {
+                            log.error("Không thể giảm số lượng tồn kho cho sản phẩm ID: {}, số lượng: {}", 
+                                       item.getProductId(), item.getQuantity());
+                        }
+                    },
+                    error -> log.error("Lỗi khi giảm số lượng tồn kho cho sản phẩm ID: {}: {}", 
+                                        item.getProductId(), error.getMessage())
+                );
         }
     }
 

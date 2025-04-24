@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:80';
+const API_URL = '';
 const API_VERSION = import.meta.env.VITE_API_VERSION || '/api';
 
 // API công khai không cần token

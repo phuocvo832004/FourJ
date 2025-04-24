@@ -93,4 +93,18 @@ public class ProductController {
         productService.deleteProduct(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/{id}/stock")
+    public ResponseEntity<?> updateStockQuantity(
+            @PathVariable Long id,
+            @RequestParam int quantity) {
+        boolean success = productService.updateStockQuantity(id, quantity);
+        if (success) {
+            log.info("Đã cập nhật số lượng tồn kho cho sản phẩm ID: {}, giảm: {}", id, quantity);
+            return ResponseEntity.ok().build();
+        } else {
+            log.error("Không thể cập nhật số lượng tồn kho cho sản phẩm ID: {}", id);
+            return ResponseEntity.badRequest().body("Không thể cập nhật số lượng tồn kho");
+        }
+    }
 }

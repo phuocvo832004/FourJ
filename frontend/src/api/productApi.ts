@@ -75,7 +75,8 @@ const mapApiProductToProduct = (item: ApiProduct): Product => ({
   image: item.imageUrl || product1Image,
   category: item.categoryName || 'Uncategorized',
   categoryId: item.categoryId,
-  // Thêm các trường khác nếu cần: stockQuantity, isActive...
+  stockQuantity: item.stockQuantity,
+  isActive: item.active,
 });
 
 const mapApiCategoryToCategory = (item: ApiCategory): Category => ({

@@ -1,220 +1,194 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { Product, Category } from '../types';
-import { ApiProduct } from '../types/api';
+import { useCallback } from 'react';
 import {
   productApi,
   sellerProductApi,
   adminProductApi
 } from '../api/productApi';
+import { 
+  useQuery, 
+  useMutation, 
+  useQueryClient,
+  useInfiniteQuery
+} from '@tanstack/react-query';
+import { ApiProduct } from '../types/api';
 
-interface PaginationInfo {
-  totalElements: number;
-  totalPages: number;
-  currentPage: number;
-  size: number;
-  isFirst: boolean;
-  isLast: boolean;
-}
+// Các khóa query để sử dụng nhất quán trong ứng dụng
+export const QUERY_KEYS = {
+  publicProducts: 'publicProducts',
+  publicProduct: 'publicProduct',
+  categories: 'categories',
+  sellerProducts: 'sellerProducts',
+  sellerProduct: 'sellerProduct',
+  adminProducts: 'adminProducts',
+  adminProduct: 'adminProduct',
+};
 
 export const useProduct = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const queryClient = useQueryClient();
 
-  const productsCache = useRef<Map<string, Product>>(new Map());
-  const categoriesCache = useRef<Category[] | null>(null);
-  const pendingRequests = useRef<Map<string, Promise<unknown>>>(new Map());
+  // === PUBLIC PRODUCTS ===
 
-  const getPublicProducts = useCallback(async (page = 0, size = 10) => {
-    const params = { page, size };
-    const cacheKey = `public_products_page${page}_size${size}`;
-    if (pendingRequests.current.has(cacheKey)) return pendingRequests.current.get(cacheKey);
+  // Lấy danh sách sản phẩm với phân trang
+  const usePublicProducts = (page = 0, size = 10) => {
+    return useQuery({
+      queryKey: [QUERY_KEYS.publicProducts, { page, size }],
+      queryFn: () => productApi.getAllPublicProducts({ page, size }),
+    });
+  };
 
-    setLoading(true); setError(null);
-    const promise = productApi.getAllPublicProducts(params)
-      .then(result => {
-        setProducts(result.products);
-        setPagination({
-            totalElements: result.pagination.totalElements,
-            totalPages: result.pagination.totalPages,
-            currentPage: result.pagination.number,
-            size: result.pagination.size,
-            isFirst: result.pagination.first,
-            isLast: result.pagination.last
-        });
-        pendingRequests.current.delete(cacheKey);
-        return result;
-      })
-      .catch(err => {
-        console.error('Error in getPublicProducts:', err);
-        setError('Không thể tải sản phẩm. Vui lòng thử lại sau.');
-        setProducts([]);
-        throw err;
-      })
-      .finally(() => {
-        setLoading(false);
-        pendingRequests.current.delete(cacheKey);
-      });
-    pendingRequests.current.set(cacheKey, promise);
-    return promise;
-  }, []);
+  // Tối ưu: Sử dụng infinite query cho "load more" pattern
+  const useInfinitePublicProducts = (size = 12) => {
+    return useInfiniteQuery({
+      queryKey: [QUERY_KEYS.publicProducts, 'infinite', size],
+      queryFn: ({ pageParam = 0 }) => productApi.getAllPublicProducts({ page: pageParam, size }),
+      initialPageParam: 0,
+      getNextPageParam: (lastPage) => {
+        return lastPage.pagination.last ? undefined : lastPage.pagination.number + 1;
+      },
+    });
+  };
 
-  const getPublicProductById = useCallback(async (id: string) => {
-    const cacheKey = `product_${id}`;
-    if (pendingRequests.current.has(cacheKey)) return pendingRequests.current.get(cacheKey);
-    if (productsCache.current.has(id)) return productsCache.current.get(id);
+  // Lấy chi tiết sản phẩm bằng ID
+  const usePublicProductById = (id: string | undefined) => {
+    return useQuery({
+      queryKey: [QUERY_KEYS.publicProduct, id],
+      queryFn: () => {
+        if (!id) throw new Error('Product ID is required');
+        return productApi.getPublicProductById(id);
+      },
+      enabled: !!id,
+    });
+  };
 
-    setLoading(true); setError(null);
-    const promise = productApi.getPublicProductById(id)
-      .then(product => {
-        productsCache.current.set(id, product);
-        pendingRequests.current.delete(cacheKey);
-        return product;
-      })
-      .catch(err => {
-        console.error(`Error in getPublicProductById for id ${id}:`, err);
-        setError('Không thể tải thông tin sản phẩm. Vui lòng thử lại sau.');
-        throw err;
-      })
-      .finally(() => {
-        setLoading(false);
-        pendingRequests.current.delete(cacheKey);
-      });
-    pendingRequests.current.set(cacheKey, promise);
-    return promise;
-  }, []);
+  // Lấy danh sách categories
+  const useCategories = () => {
+    return useQuery({
+      queryKey: [QUERY_KEYS.categories],
+      queryFn: () => productApi.getAllCategories(),
+      staleTime: 1000 * 60 * 60, // 1 giờ
+    });
+  };
 
-  const getCategories = useCallback(async () => {
-    const cacheKey = 'all_categories';
-    if (pendingRequests.current.has(cacheKey)) return pendingRequests.current.get(cacheKey);
-    if (categoriesCache.current) {
-      setCategories(categoriesCache.current);
-      return categoriesCache.current;
-    }
+  // === SELLER PRODUCTS ===
 
-    setLoading(true); setError(null);
-    const promise = productApi.getAllCategories()
-      .then(categoriesData => {
-        setCategories(categoriesData);
-        categoriesCache.current = categoriesData;
-        pendingRequests.current.delete(cacheKey);
-        return categoriesData;
-      })
-      .catch(err => {
-        console.error('Error in getCategories:', err);
-        setError('Không thể tải danh mục. Vui lòng thử lại sau.');
-        setCategories([]);
-        throw err;
-      })
-      .finally(() => {
-        setLoading(false);
-        pendingRequests.current.delete(cacheKey);
-      });
-    pendingRequests.current.set(cacheKey, promise);
-    return promise;
-  }, []);
+  // Lấy sản phẩm của người bán
+  const useSellerProducts = (page = 0, size = 10) => {
+    return useQuery({
+      queryKey: [QUERY_KEYS.sellerProducts, { page, size }],
+      queryFn: () => sellerProductApi.getMySellerProducts({ page, size }),
+    });
+  };
 
-  const getMySellerProducts = useCallback(async (page = 0, size = 10) => {
-    const params = { page, size };
-    const cacheKey = `seller_products_page${page}_size${size}`;
-    if (pendingRequests.current.has(cacheKey)) return pendingRequests.current.get(cacheKey);
+  // Lấy chi tiết sản phẩm của người bán
+  const useSellerProductById = (id: string | undefined) => {
+    return useQuery({
+      queryKey: [QUERY_KEYS.sellerProduct, id],
+      queryFn: () => {
+        if (!id) throw new Error('Product ID is required');
+        return sellerProductApi.getSellerProductById(id);
+      },
+      enabled: !!id,
+    });
+  };
 
-    setLoading(true); setError(null);
-    try {
-      const result = await sellerProductApi.getMySellerProducts(params);
-      setProducts(result.products);
-      setPagination({
-          totalElements: result.pagination.totalElements,
-          totalPages: result.pagination.totalPages,
-          currentPage: result.pagination.number,
-          size: result.pagination.size,
-          isFirst: result.pagination.first,
-          isLast: result.pagination.last
-      });
-      return result;
-    } catch (err) {
-      console.error('Error fetching seller products:', err);
-      setError('Không thể tải sản phẩm của bạn.');
-      throw err;
-    } finally {
-      setLoading(false);
-      pendingRequests.current.delete(cacheKey);
-    }
-  }, []);
+  // Tạo sản phẩm mới (người bán)
+  const useCreateSellerProduct = () => {
+    return useMutation({
+      mutationFn: (productData: Omit<ApiProduct, 'id'>) => 
+        sellerProductApi.createSellerProduct(productData),
+      onSuccess: () => {
+        // Vô hiệu hóa cache danh sách sản phẩm của người bán
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.sellerProducts] });
+      },
+    });
+  };
 
-  const createSellerProduct = useCallback(async (productData: Omit<ApiProduct, 'id'>) => {
-    setLoading(true); setError(null);
-    try {
-      const newProduct = await sellerProductApi.createSellerProduct(productData);
-      return newProduct;
-    } catch (err) {
-      console.error('Error creating seller product:', err);
-      setError('Không thể tạo sản phẩm.');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Cập nhật sản phẩm (người bán)
+  const useUpdateSellerProduct = () => {
+    return useMutation({
+      mutationFn: ({ id, data }: { id: string, data: Partial<ApiProduct> }) => 
+        sellerProductApi.updateSellerProduct(id, data),
+      onSuccess: (_, variables) => {
+        // Vô hiệu hóa cache của sản phẩm đã cập nhật
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.sellerProduct, variables.id] });
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.sellerProducts] });
+      },
+    });
+  };
 
-  const getAllAdminProducts = useCallback(async (page = 0, size = 10) => {
-    const params = { page, size };
-    const cacheKey = `admin_products_page${page}_size${size}`;
-    if (pendingRequests.current.has(cacheKey)) return pendingRequests.current.get(cacheKey);
+  // Xóa sản phẩm (người bán)
+  const useDeleteSellerProduct = () => {
+    return useMutation({
+      mutationFn: (id: string) => sellerProductApi.deleteSellerProduct(id),
+      onSuccess: () => {
+        // Vô hiệu hóa cache danh sách sản phẩm
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.sellerProducts] });
+      },
+    });
+  };
 
-    setLoading(true); setError(null);
-    try {
-      const result = await adminProductApi.getAllAdminProducts(params);
-      setProducts(result.products);
-      setPagination({
-          totalElements: result.pagination.totalElements,
-          totalPages: result.pagination.totalPages,
-          currentPage: result.pagination.number,
-          size: result.pagination.size,
-          isFirst: result.pagination.first,
-          isLast: result.pagination.last
-      });
-      return result;
-    } catch (err) {
-      console.error('Error fetching admin products:', err);
-      setError('Không thể tải danh sách sản phẩm.');
-      throw err;
-    } finally {
-      setLoading(false);
-      pendingRequests.current.delete(cacheKey);
-    }
-  }, []);
+  // === ADMIN PRODUCTS ===
 
-  const activateProduct = useCallback(async (id: string) => {
-    setLoading(true); setError(null);
-    try {
-      await adminProductApi.activateProduct(id);
-    } catch (err) {
-      console.error('Error activating product:', err);
-      setError('Không thể kích hoạt sản phẩm.');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Lấy danh sách tất cả sản phẩm (admin)
+  const useAdminProducts = (page = 0, size = 10) => {
+    return useQuery({
+      queryKey: [QUERY_KEYS.adminProducts, { page, size }],
+      queryFn: () => adminProductApi.getAllAdminProducts({ page, size }),
+    });
+  };
 
-  useEffect(() => {
-    getCategories();
-  }, [getCategories]);
+  // Kích hoạt/hủy kích hoạt sản phẩm
+  const useToggleProductActivation = () => {
+    return useMutation({
+      mutationFn: ({ id, activate }: { id: string, activate: boolean }) => 
+        activate ? adminProductApi.activateProduct(id) : adminProductApi.deactivateProduct(id),
+      onSuccess: (_, variables) => {
+        // Vô hiệu hóa cache của sản phẩm đã thay đổi
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.adminProduct, variables.id] });
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.adminProducts] });
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.publicProduct, variables.id] });
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.publicProducts] });
+      },
+    });
+  };
 
+  // === Helper methods cho truy cập nhanh ===
+
+  // Prefetch sản phẩm để tăng tốc điều hướng
+  const prefetchProduct = useCallback((id: string) => {
+    queryClient.prefetchQuery({
+      queryKey: [QUERY_KEYS.publicProduct, id],
+      queryFn: () => productApi.getPublicProductById(id),
+    });
+  }, [queryClient]);
+
+  // Xóa cache sản phẩm
+  const invalidateProductsCache = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.publicProducts] });
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.publicProduct] });
+  }, [queryClient]);
+
+  // Trả về các hooks và helpers
   return {
-    products,
-    categories,
-    loading,
-    error,
-    pagination,
-    getPublicProducts,
-    getPublicProductById,
-    getCategories,
-    getMySellerProducts,
-    createSellerProduct,
-    getAllAdminProducts,
-    activateProduct,
+    // Public hooks
+    usePublicProducts,
+    useInfinitePublicProducts,
+    usePublicProductById,
+    useCategories,
+    
+    // Seller hooks
+    useSellerProducts,
+    useSellerProductById,
+    useCreateSellerProduct,
+    useUpdateSellerProduct,
+    useDeleteSellerProduct,
+    
+    // Admin hooks
+    useAdminProducts,
+    useToggleProductActivation,
+    
+    // Helper methods
+    prefetchProduct,
+    invalidateProductsCache,
   };
 }; 
