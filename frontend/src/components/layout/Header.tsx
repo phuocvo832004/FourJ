@@ -55,18 +55,6 @@ const Header: React.FC = () => {
     };
   }, [isUserMenuOpen]); // Thêm isUserMenuOpen vào dependency để effect được cập nhật khi menu thay đổi
 
-  // Xử lý các thao tác menu
-  const handleNavigation = (path: string) => {
-    closeUserMenu();
-    navigate(path);
-  };
-
-  // Xử lý logout
-  const handleLogout = () => {
-    closeUserMenu();
-    logout();
-  };
-
   return (
     <header className="bg-white shadow-sm">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -183,20 +171,29 @@ const Header: React.FC = () => {
                   >
                     <button 
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => handleNavigation('/account')}
+                      onClick={() => {
+                        closeUserMenu();
+                        navigate('/account');
+                      }}
                       role="menuitem"
                     >
                       Tài khoản
                     </button>
                     <button 
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => handleNavigation('/orders')}
+                      onClick={() => {
+                        closeUserMenu();
+                        navigate('/orders');
+                      }}
                       role="menuitem"
                     >
                       Đơn hàng
                     </button>
                     <button 
-                      onClick={handleLogout}
+                      onClick={() => {
+                        logout();
+                        closeUserMenu();
+                      }}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       role="menuitem"
                     >

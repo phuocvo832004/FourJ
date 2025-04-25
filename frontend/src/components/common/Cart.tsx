@@ -70,7 +70,7 @@ const Cart: React.FC<CartProps> = ({
                   <div className="space-y-5">
                     <div className="overflow-auto max-h-96 px-4">
                       {items.map(item => (
-                        <div key={item.id} className="py-4 flex items-center border-b border-gray-200">
+                        <div key={item.cartItemId || item.id} className="py-4 flex items-center border-b border-gray-200">
                           <div className="flex-shrink-0 w-20 h-20 bg-gray-100 rounded-md overflow-hidden">
                             <img
                               src={item.image}
@@ -84,6 +84,7 @@ const Cart: React.FC<CartProps> = ({
                               <button
                                 onClick={() => onRemoveItem(item.id)}
                                 className="text-sm font-medium text-red-600 hover:text-red-800"
+                                disabled={!item.id}
                               >
                                 Xóa
                               </button>
@@ -95,7 +96,7 @@ const Cart: React.FC<CartProps> = ({
                               <div className="flex items-center border border-gray-200 rounded">
                                 <button
                                   onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-                                  disabled={item.quantity <= 1}
+                                  disabled={item.quantity <= 1 || !item.id}
                                   className="px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-l"
                                 >
                                   <MinusIcon className="h-4 w-4" />
@@ -106,6 +107,7 @@ const Cart: React.FC<CartProps> = ({
                                 <button
                                   onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
                                   className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-r"
+                                  disabled={!item.id}
                                 >
                                   <PlusIcon className="h-4 w-4" />
                                 </button>

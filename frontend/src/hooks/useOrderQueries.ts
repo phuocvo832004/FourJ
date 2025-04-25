@@ -24,18 +24,6 @@ export const useUserOrdersQuery = (page = 0, size = 10) => {
         throw new Error('Vui lòng đăng nhập để xem lịch sử đơn hàng');
       }
       
-      // Thử lấy từ cache nếu có
-      const cacheKey = `orders_user_page${page}_size${size}`;
-      const cachedData = storageCache.get<{
-        orders: OrderDto[];
-        totalPages: number;
-      }>(cacheKey);
-      
-      if (cachedData) {
-        console.log('Sử dụng dữ liệu đơn hàng từ cache');
-        return cachedData;
-      }
-      
       // Gọi API nếu không có cache
       const response = await orderApi.getUserOrders(page, size);
       let result = {
@@ -55,9 +43,6 @@ export const useUserOrdersQuery = (page = 0, size = 10) => {
           totalPages: response.data.totalPages || 1
         };
       }
-      
-      // Lưu vào cache với thời gian 5 phút
-      storageCache.set(cacheKey, result, 5 * 60 * 1000);
       
       return result;
     },

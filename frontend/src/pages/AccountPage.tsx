@@ -2,7 +2,7 @@ import  { useState, useEffect, lazy, Suspense, memo } from 'react';
 import { useAuth } from '../auth/auth-hooks';
 import axios from 'axios';
 import { Tab } from '@headlessui/react';
-import { ShieldCheckIcon, KeyIcon, UserCircleIcon, IdentificationIcon } from '@heroicons/react/24/outline';
+import { KeyIcon, UserCircleIcon, IdentificationIcon } from '@heroicons/react/24/outline';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Định nghĩa kiểu dữ liệu
@@ -18,12 +18,6 @@ interface UserProfile {
   updatedAt: string;
 }
 
-interface UserRoles {
-  userId: string;
-  roles: string[];
-  permissions: string[];
-}
-
 // API Base URL
 const API_BASE_URL = '/api/iam';
 
@@ -37,7 +31,6 @@ const api = axios.create({
 
 // Component con cho tabs - được tách riêng để lazy loading
 const ProfileTab = lazy(() => import('../components/account/ProfileTab'));
-const RolesTab = lazy(() => import('../components/account/RolesTab'));
 const SecurityTab = lazy(() => import('../components/account/SecurityTab'));
 const Auth0Tab = lazy(() => import('../components/account/Auth0Tab'));
 
@@ -115,17 +108,6 @@ const AccountPage = () => {
     }
   }, [profileLoading, userProfile]);
 
-  // Sử dụng React Query để fetch quyền
-  const { data: userRoles, isLoading: rolesLoading } = useQuery<UserRoles>({
-    queryKey: ['userRoles'],
-    queryFn: async () => {
-      const response = await api.get('/users/me/user-permissions');
-      return response.data;
-    },
-    enabled: isAuthenticated && !isLoading,
-    staleTime: 10 * 60 * 1000 // 10 phút
-  });
-
   // Sử dụng useMutation cho việc cập nhật profile
   const updateProfileMutation = useMutation<unknown, unknown, UpdateProfileData>({
     mutationFn: async (updateData: UpdateProfileData) => {
@@ -175,7 +157,6 @@ const AccountPage = () => {
   const commonProps = {
     userProfile: userProfile || null,
     user: user || { name: '', email: '', picture: '' },
-    userRoles,
     setSuccessMessage,
     setErrorMessage,
     updateProfileMutation
@@ -200,12 +181,6 @@ const AccountPage = () => {
             <Tab className={({ selected }) =>
               `w-full py-3 text-sm font-medium rounded-md transition-colors flex items-center justify-center
               ${selected ? 'bg-white text-blue-600 shadow' : 'text-gray-500 hover:text-gray-700'}`}>
-              <ShieldCheckIcon className="w-5 h-5 mr-2" />
-              Quyền hạn & Vai trò
-            </Tab>
-            <Tab className={({ selected }) =>
-              `w-full py-3 text-sm font-medium rounded-md transition-colors flex items-center justify-center
-              ${selected ? 'bg-white text-blue-600 shadow' : 'text-gray-500 hover:text-gray-700'}`}>
               <KeyIcon className="w-5 h-5 mr-2" />
               Bảo mật
             </Tab>
@@ -221,9 +196,6 @@ const AccountPage = () => {
             <Suspense fallback={<LoadingSpinner />}>
               <Tab.Panel className="p-6">
                 {profileLoading ? <LoadingSpinner /> : <ProfileTab {...commonProps} />}
-              </Tab.Panel>
-              <Tab.Panel className="p-6">
-                {rolesLoading ? <LoadingSpinner /> : <RolesTab userRoles={userRoles} />}
               </Tab.Panel>
               <Tab.Panel className="p-6">
                 <SecurityTab user={user} />
