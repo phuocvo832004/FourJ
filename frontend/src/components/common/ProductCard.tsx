@@ -34,7 +34,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ id, name, price, image, categ
       quantity: 1,
       productId: id,
       productName: name,
-      productImage: image
+      productImage: image,
+      stockQuantity: 1,
+      isActive: true
     });
   };
   

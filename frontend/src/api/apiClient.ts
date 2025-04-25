@@ -74,19 +74,8 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      // Log để debug - chỉ hiển thị độ dài token
-      console.log(`[Debug] Đính kèm token cho ${config.url}, token length: ${token.length}`);
-    } else {
-      console.warn(`[Debug] Không tìm thấy token trong localStorage cho request ${config.url}`);
     }
   }
-  
-  // Log thông tin request cho phần debug
-  console.log(`[Debug] Request to: ${config.method?.toUpperCase()} ${config.url}`, {
-    isPublic,
-    hasAuthHeader: !!config.headers.Authorization,
-    baseURL: config.baseURL
-  });
   
   return config;
 }, error => Promise.reject(error));
@@ -107,17 +96,14 @@ apiClient.interceptors.response.use(response => {
     // Kiểm tra xem request là public API không
     const isPublic = isPublicApi(config.url);
     
-    console.error(`API Error ${status}: ${errorMessage}`, isPublic ? '(Public API)' : '');
     error.errorMessage = errorMessage;
     
     // Xử lý lỗi theo status code
     if (status === 401) {
       // Nếu là public API gặp lỗi 401, có thể do vấn đề gateway/routing
       if (isPublic) {
-        console.error('Public API gặp lỗi xác thực. Có thể do cấu hình gateway không chính xác.');
         // Thử gọi lại không có header xác thực nếu là public API
         if (config.headers.Authorization) {
-          console.log('Thử gọi lại API công khai không có token...');
           delete config.headers.Authorization;
           return axios(config);
         }
@@ -128,22 +114,8 @@ apiClient.interceptors.response.use(response => {
         localStorage.setItem('redirect_after_login', window.location.href);
         window.location.href = '/login';
       }
-    } else if (status === 404) {
-      console.error('API endpoint not found');
-    } else if (status >= 500) {
-      console.error('Server error - Please try again later');
     }
   } 
-  // Lỗi network
-  else if (error.request) {
-    console.error('Network Error: No response received');
-    error.errorMessage = 'Lỗi kết nối mạng. Vui lòng kiểm tra kết nối internet.';
-  } 
-  // Lỗi khác
-  else {
-    console.error('Request Error:', error.message);
-    error.errorMessage = `Lỗi khi gửi yêu cầu: ${error.message}`;
-  }
   
   return Promise.reject(error);
 });
@@ -178,7 +150,6 @@ const cachedGet = async <T>(url: string, config?: AxiosRequestConfig): Promise<A
   // Kiểm tra cache
   const cachedResponse = apiCache.get(cacheKey);
   if (cachedResponse && !isCacheExpired(cachedResponse)) {
-    console.log(`Using cached response for: ${url}`);
     const response = {
       data: cachedResponse.data,
       status: 200,

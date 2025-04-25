@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { SellerApplicationForm } from '../../types';
+import { useAuth } from '../../auth/auth-hooks';
+import apiClient from '../../api/apiClient';
+import { uploadImageToCloudinary } from '../../utils/cloudinaryUpload';
 
 const SellerRegistrationPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading, login, user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<SellerApplicationForm>({
     name: '',
@@ -23,6 +28,65 @@ const SellerRegistrationPage: React.FC = () => {
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [profileChecked, setProfileChecked] = useState(false);
+
+  // Sử dụng biến môi trường từ Vite
+  const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dxggv6rnr';
+  const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'upload-preset';
+
+  // Kiểm tra nếu người dùng chưa đăng nhập thì chuyển đến trang đăng nhập
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      // Lưu đường dẫn hiện tại để quay lại sau khi đăng nhập
+      localStorage.setItem('redirect_after_login', window.location.pathname);
+      login();
+    }
+  }, [isLoading, isAuthenticated, login]);
+
+  // Kiểm tra và tạo user profile nếu cần
+  const checkUserProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Kiểm tra xem profile đã tồn tại chưa
+      const profileResponse = await apiClient.get('/users/profile/me');
+      console.log('User profile exists:', profileResponse.data);
+      
+    } catch (profileError) {
+      console.log('User profile not found, creating...', profileError);
+      
+      // Nếu không có profile, tạo mới
+      try {
+        // Lấy thông tin từ Auth0 user object
+        const profileData = {
+          name: user?.name || '',
+          email: user?.email || '',
+          profilePicture: user?.picture || ''
+        };
+        
+        // Tạo profile mới
+        await apiClient.post('/users/profile/me', profileData);
+        console.log('User profile created successfully');
+        
+      } catch (createError) {
+        console.error('Error creating user profile:', createError);
+        const createErrorObj = createError as { response?: { data?: { message?: string } }, message?: string };
+        setError(`Không thể tạo hồ sơ người dùng: ${createErrorObj.response?.data?.message || createErrorObj.message || 'Lỗi không xác định'}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [user, setLoading, setError]);
+
+  // Kiểm tra và đảm bảo user profile đã được tạo
+  useEffect(() => {
+    if (isAuthenticated && user && !profileChecked) {
+      setProfileChecked(true);
+      checkUserProfile();
+    }
+  }, [isAuthenticated, user, profileChecked, checkUserProfile]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -44,7 +108,7 @@ const SellerRegistrationPage: React.FC = () => {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setLogoFile(file);
@@ -55,6 +119,27 @@ const SellerRegistrationPage: React.FC = () => {
         setLogoPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+
+      // Upload ảnh lên Cloudinary ngay khi chọn
+      try {
+        setUploadingLogo(true);
+        setError(null);
+        
+        const response = await uploadImageToCloudinary(
+          file,
+          CLOUDINARY_UPLOAD_PRESET,
+          CLOUDINARY_CLOUD_NAME
+        );
+        
+        // Lưu URL của ảnh đã upload
+        setLogoUrl(response.secure_url);
+        console.log('Logo đã được upload:', response.secure_url);
+      } catch (uploadError) {
+        console.error('Lỗi khi upload logo:', uploadError);
+        setError('Không thể upload logo. Vui lòng thử lại.');
+      } finally {
+        setUploadingLogo(false);
+      }
     }
   };
 
@@ -63,39 +148,54 @@ const SellerRegistrationPage: React.FC = () => {
     setLoading(true);
     setError(null);
 
+    // Kiểm tra xem đã upload logo hay chưa
+    if (logoFile && !logoUrl) {
+      setError('Vui lòng đợi logo được tải lên hoàn tất');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const formDataToSend = new FormData();
-      Object.entries(formData).forEach(([key, value]) => {
-        if (typeof value === 'object' && value !== null && !(value instanceof File)) {
-          formDataToSend.append(key, JSON.stringify(value));
-        } else {
-          formDataToSend.append(key, value as string);
-        }
-      });
+      // Chuẩn bị dữ liệu để gửi đi, sử dụng logoUrl thay vì file và map các trường cho đúng với backend
+      const requestData = {
+        storeName: formData.name, // Map 'name' thành 'storeName' như backend yêu cầu
+        description: formData.description,
+        address: formData.address,
+        phoneNumber: formData.phoneNumber,
+        email: formData.email,
+        businessRegistrationNumber: formData.businessRegistrationNumber,
+        taxId: formData.taxId,
+        bankAccount: formData.bankAccount,
+        logo: logoUrl // Sử dụng URL đã upload lên Cloudinary
+      };
 
-      if (logoFile) {
-        formDataToSend.append('logo', logoFile);
-      }
-
-      const response = await fetch('/api/sellers/register', {
-        method: 'POST',
-        body: formDataToSend,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Đăng ký thất bại');
-      }
+      console.log('Sending seller registration data:', requestData);
+      
+      // Gửi request đến API
+      await apiClient.post('/users/seller/register', requestData);
 
       // Navigate to pending approval page
       navigate('/seller/pending');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error submitting seller application:', error);
-      setError(error instanceof Error ? error.message : 'Đã xảy ra lỗi khi đăng ký');
+      // Xử lý lỗi từ apiClient
+      const errorObj = error as { response?: { data?: { message?: string } }, errorMessage?: string, message?: string };
+      const errorMessage = errorObj.response?.data?.message || errorObj.errorMessage || errorObj.message || 'Đã xảy ra lỗi khi đăng ký';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
+
+  // Hiển thị trạng thái đang tải khi kiểm tra xác thực
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-4">Đang tải...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -172,11 +272,21 @@ const SellerRegistrationPage: React.FC = () => {
                 name="logo"
                 accept="image/*"
                 onChange={handleFileChange}
+                disabled={uploadingLogo}
                 className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              {uploadingLogo && (
+                <div className="mt-2 flex items-center text-sm text-gray-500">
+                  <div className="animate-spin mr-2 h-4 w-4 border-b-2 border-blue-500"></div>
+                  Đang tải logo lên...
+                </div>
+              )}
               {logoPreview && (
                 <div className="mt-2">
                   <img src={logoPreview} alt="Logo preview" className="w-20 h-20 object-cover" />
+                  {logoUrl && (
+                    <p className="text-xs text-green-600 mt-1">Đã tải lên thành công</p>
+                  )}
                 </div>
               )}
             </div>
@@ -295,7 +405,7 @@ const SellerRegistrationPage: React.FC = () => {
             </p>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || uploadingLogo}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
             >
               {loading ? 'Đang xử lý...' : 'Đăng ký'}

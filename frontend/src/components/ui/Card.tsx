@@ -7,7 +7,7 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   padding?: 'none' | 'sm' | 'md' | 'lg';
 }
 
-export const Card = React.forwardRef<HTMLDivElement, CardProps>(
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, shadow = 'md', border = true, padding = 'md', ...props }, ref) => {
     const shadowVariants = {
       none: '',
@@ -99,7 +99,7 @@ export const CardContent = React.forwardRef<
   ({ className, ...props }, ref) => {
     return (
       <div
-        className={cn('', className)}
+        className={cn('p-4', className)}
         ref={ref}
         {...props}
       />
@@ -108,6 +108,23 @@ export const CardContent = React.forwardRef<
 );
 
 CardContent.displayName = 'CardContent';
+
+export const CardBody = React.forwardRef<
+  HTMLDivElement, 
+  React.HTMLAttributes<HTMLDivElement>
+>(
+  ({ className, ...props }, ref) => {
+    return (
+      <div
+        className={cn('', className)}
+        ref={ref}
+        {...props}
+      />
+    );
+  }
+);
+
+CardBody.displayName = 'CardBody';
 
 export const CardFooter = React.forwardRef<
   HTMLDivElement, 
@@ -124,4 +141,23 @@ export const CardFooter = React.forwardRef<
   }
 );
 
-CardFooter.displayName = 'CardFooter'; 
+CardFooter.displayName = 'CardFooter';
+
+// Attach subcomponents
+type CardComponent = typeof Card & {
+  Header: typeof CardHeader;
+  Title: typeof CardTitle;
+  Description: typeof CardDescription;
+  Content: typeof CardContent;
+  Body: typeof CardBody;
+  Footer: typeof CardFooter;
+};
+
+(Card as CardComponent).Header = CardHeader;
+(Card as CardComponent).Title = CardTitle;
+(Card as CardComponent).Description = CardDescription;
+(Card as CardComponent).Content = CardContent;
+(Card as CardComponent).Body = CardBody;
+(Card as CardComponent).Footer = CardFooter;
+
+export { Card }; 

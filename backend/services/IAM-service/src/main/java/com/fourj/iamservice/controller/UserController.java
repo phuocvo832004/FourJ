@@ -2,8 +2,10 @@
 package com.fourj.iamservice.controller;
 
 import com.fourj.iamservice.dto.UserDto;
+import com.fourj.iamservice.dto.UserPermissionsDto;
 import com.fourj.iamservice.dto.UserUpdateDto;
 import com.fourj.iamservice.model.User;
+import com.fourj.iamservice.service.UserRoleService;
 import com.fourj.iamservice.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -23,10 +25,18 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+    private final UserRoleService userRoleService;
 
     @Autowired
-    public UserController(UserService userService) {
+    public UserController(UserService userService, UserRoleService userRoleService) {
         this.userService = userService;
+        this.userRoleService = userRoleService;
+    }
+
+    @GetMapping("/me/user-permissions")
+    public ResponseEntity<UserPermissionsDto> getCurrentUserPermissions(@AuthenticationPrincipal Jwt jwt) {
+        String userId = jwt.getSubject();
+        return ResponseEntity.ok(userRoleService.getUserPermissions(userId));
     }
 
     @GetMapping("/me")
