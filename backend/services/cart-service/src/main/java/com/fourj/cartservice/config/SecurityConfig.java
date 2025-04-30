@@ -9,13 +9,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.core.OAuth2TokenValidator;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtDecoders;
-import org.springframework.security.oauth2.jwt.JwtValidators;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -59,11 +52,6 @@ public class SecurityConfig {
             .anyRequest().authenticated()
         );
         
-        // Cấu hình OAuth2 Resource Server
-        http.oauth2ResourceServer(oauth2 -> oauth2
-            .jwt(jwt -> jwt.jwtAuthenticationConverter(new PermissionsJwtAuthenticationConverter()))
-        );
-        
         return http.build();
     }
     
@@ -83,32 +71,4 @@ public class SecurityConfig {
         return source;
     }
 
-    @Bean
-    JwtDecoder jwtDecoder() {
-        NimbusJwtDecoder jwtDecoder = (NimbusJwtDecoder)
-                JwtDecoders.fromOidcIssuerLocation(issuer);
-
-        OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audience);
-        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuer);
-        OAuth2TokenValidator<Jwt> withAudience = new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator);
-
-        jwtDecoder.setJwtValidator(withAudience);
-
-        return jwtDecoder;
-    }
-    
-    /**
-     * Converter để trích xuất permissions từ JWT
-     */
-    public class PermissionsJwtAuthenticationConverter extends org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter {
-        public PermissionsJwtAuthenticationConverter() {
-            super();
-            
-            // Đặt JWT Grant Authority Converter
-            setJwtGrantedAuthoritiesConverter(jwt -> {
-                // Trích xuất permissions từ token và chuyển đổi thành GrantedAuthority
-                return new org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter().convert(jwt);
-            });
-        }
-    }
 }

@@ -1,5 +1,6 @@
 package com.fourj.userservice.controller;
 
+import com.fourj.userservice.config.UserHeadersAuthenticationFilter.KongUser;
 import com.fourj.userservice.dto.UserProfileDto;
 import com.fourj.userservice.dto.UserProfileUpdateDto;
 import com.fourj.userservice.model.UserProfile;
@@ -9,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,30 +28,30 @@ public class UserProfileController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<UserProfileDto> getCurrentUserProfile(@AuthenticationPrincipal Jwt jwt) {
-        String auth0Id = jwt.getSubject();
+    public ResponseEntity<UserProfileDto> getCurrentUserProfile(@AuthenticationPrincipal KongUser kongUser) {
+        String auth0Id = kongUser.getId();
 
         if (!userProfileService.userProfileExists(auth0Id)) {
             // Tạo profile người dùng mới nếu chưa tồn tại
             UserProfile newUserProfile = new UserProfile();
             newUserProfile.setAuth0Id(auth0Id);
 
-            // Lấy email từ JWT token claims
-            String email = jwt.getClaim("email");
+            // Lấy email từ thông tin user
+            Object email = kongUser.getAttribute("email");
             if (email != null) {
-                newUserProfile.setEmail(email);
+                newUserProfile.setEmail(email.toString());
             }
 
-            // Lấy fullName từ JWT claims
-            String name = jwt.getClaim("name");
+            // Lấy fullName từ thông tin user
+            Object name = kongUser.getAttribute("name");
             if (name != null) {
-                newUserProfile.setFullName(name);
+                newUserProfile.setFullName(name.toString());
             }
 
-            // Lấy avatar từ JWT claims
-            String picture = jwt.getClaim("picture");
+            // Lấy avatar từ thông tin user
+            Object picture = kongUser.getAttribute("picture");
             if (picture != null) {
-                newUserProfile.setAvatarUrl(picture);
+                newUserProfile.setAvatarUrl(picture.toString());
             }
 
             return new ResponseEntity<>(userProfileService.createUserProfile(newUserProfile), HttpStatus.CREATED);
@@ -62,9 +62,9 @@ public class UserProfileController {
 
     @PutMapping("/me")
     public ResponseEntity<UserProfileDto> updateCurrentUserProfile(
-            @AuthenticationPrincipal Jwt jwt,
+            @AuthenticationPrincipal KongUser kongUser,
             @Valid @RequestBody UserProfileUpdateDto updateDto) {
-        String auth0Id = jwt.getSubject();
+        String auth0Id = kongUser.getId();
         return ResponseEntity.ok(userProfileService.updateUserProfile(auth0Id, updateDto));
     }
 

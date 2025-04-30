@@ -13,15 +13,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.core.OAuth2TokenValidator;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtDecoders;
-import org.springframework.security.oauth2.jwt.JwtValidators;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -35,25 +28,16 @@ import java.util.List;
 @EnableMethodSecurity
 public class SecurityConfig {
     private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
-
-    @Value("${auth0.audience}")
-    private String audience;
-
-    @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
-    private String issuer;
     
     @Value("${app.cors.allowed-origins:*}")
     private String allowedOrigins;
     
     @Autowired
     private PublicEndpointsConfig.PublicEndpointsFilter publicEndpointsFilter;
-    
-    @Autowired
-    private BearerTokenResolver bearerTokenResolver;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        logger.info("Configuring security with audience: {} and issuer: {}", audience, issuer);
+        logger.info("Configuring security with Kong OIDC header-based authentication");
         
         // Đặt cấu hình không tạo session
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
@@ -64,6 +48,9 @@ public class SecurityConfig {
             
         // Thêm bộ lọc public endpoints trước bộ lọc OAuth2
         http.addFilterBefore(publicEndpointsFilter, BasicAuthenticationFilter.class);
+        
+        // Thêm filter xác thực từ header và đặt trước bất kỳ bộ lọc xác thực nào khác
+        http.addFilterBefore(userHeadersAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         
         // Cấu hình các quy tắc yêu cầu HTTP
         http.authorizeHttpRequests(auth -> auth
@@ -83,13 +70,14 @@ public class SecurityConfig {
             .anyRequest().authenticated()
         );
         
-        // Cấu hình OAuth2 Resource Server với BearerTokenResolver tùy chỉnh
-        http.oauth2ResourceServer(oauth2 -> oauth2
-            .bearerTokenResolver(bearerTokenResolver)
-            .jwt(jwt -> jwt.jwtAuthenticationConverter(new PermissionsJwtAuthenticationConverter()))
-        );
+        // Loại bỏ cấu hình oauth2ResourceServer
         
         return http.build();
+    }
+    
+    @Bean
+    public UserHeadersAuthenticationFilter userHeadersAuthenticationFilter() {
+        return new UserHeadersAuthenticationFilter();
     }
     
     @Bean
@@ -108,24 +96,6 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
-
-    @Bean
-    JwtDecoder jwtDecoder() {
-        logger.info("Initializing JWT Decoder with audience: {}, issuer: {}", audience, issuer);
-        
-        try {
-            NimbusJwtDecoder jwtDecoder = JwtDecoders.fromOidcIssuerLocation(issuer);
-            OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audience);
-            OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuer);
-            OAuth2TokenValidator<Jwt> withAudience = new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator);
-            
-            jwtDecoder.setJwtValidator(withAudience);
-            
-            logger.info("JWT Decoder configured successfully");
-            return jwtDecoder;
-        } catch (Exception e) {
-            logger.error("Error configuring JWT Decoder: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
+    
+    // Loại bỏ Bean JwtDecoder không cần thiết nữa
 }
