@@ -28,7 +28,7 @@ export const Auth0ProviderWithNavigate: React.FC<PropsWithChildren> = ({ childre
       authorizationParams={{
         redirect_uri: auth0Config.redirectUri,
         audience: auth0Config.audience,
-        scope: auth0Config.scope,
+        scope: auth0Config.scope
       }}
       onRedirectCallback={onRedirectCallback}
       cacheLocation="localstorage"

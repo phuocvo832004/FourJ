@@ -1,6 +1,7 @@
 import axios, { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import { getToken } from '../auth/auth-service';
 
-const API_URL = '';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:80';
 const API_VERSION = import.meta.env.VITE_API_VERSION || '/api';
 
 // API công khai không cần token
@@ -59,66 +60,77 @@ interface ExtendedAxiosInstance extends ReturnType<typeof axios.create> {
 
 const apiClient = axios.create({
   baseURL: `${API_URL}${API_VERSION}`,
-  headers: { 'Content-Type': 'application/json' },
-  timeout: 10000
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  },
+  timeout: 10000,
+  withCredentials: true // Bật credentials để hỗ trợ cookie từ Kong OIDC
 }) as ExtendedAxiosInstance;
 
-apiClient.defaults.withCredentials = false;
-
-// Request interceptor
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+// Interceptor cho request - thêm token nếu có
+apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+  // Kiểm tra xem API có yêu cầu xác thực không
   const isPublic = isPublicApi(config.url || '');
   
-  // Thêm token cho request nếu không phải public API
+  // Chỉ thêm token cho các API không công khai
   if (!isPublic) {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    try {
+      const token = await getToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      } else {
+        console.warn(`No token available for protected API call to: ${config.url}`);
+        // Tiếp tục request mà không có token, backend sẽ trả về 401 nếu cần
+      }
+    } catch (error) {
+      console.error(`Failed to get token for API call to: ${config.url}`, error);
+      // Tiếp tục request để backend trả về 401 và frontend có thể xử lý sau
     }
   }
   
   return config;
 }, error => Promise.reject(error));
 
-// Response interceptor
-apiClient.interceptors.response.use(response => {
-  return response;
-}, error => {
-  // Xử lý lỗi từ server
-  if (error.response) {
-    const { status, data, config } = error.response;
-    const errorMessage = data?.message || 'Lỗi không xác định';
-    
-    // Xóa khỏi pending requests khi có lỗi
-    const cacheKey = getCacheKey(config);
-    pendingRequestsMap.delete(cacheKey);
-    
-    // Kiểm tra xem request là public API không
-    const isPublic = isPublicApi(config.url);
-    
-    error.errorMessage = errorMessage;
-    
-    // Xử lý lỗi theo status code
-    if (status === 401) {
-      // Nếu là public API gặp lỗi 401, có thể do vấn đề gateway/routing
-      if (isPublic) {
-        // Thử gọi lại không có header xác thực nếu là public API
-        if (config.headers.Authorization) {
-          delete config.headers.Authorization;
-          return axios(config);
+// Interceptor cho response - xử lý lỗi token
+apiClient.interceptors.response.use(
+  response => response,
+  error => {
+    // Xử lý lỗi từ server
+    if (error.response) {
+      const { status, data, config } = error.response;
+      const errorMessage = data?.message || 'Lỗi không xác định';
+      
+      // Xóa khỏi pending requests khi có lỗi
+      const cacheKey = getCacheKey(config);
+      pendingRequestsMap.delete(cacheKey);
+      
+      // Xử lý lỗi liên quan đến token
+      if (status === 401 || status === 403) {
+        console.warn(`Unauthorized (${status}) access attempt to: ${config.url}`);
+        
+        // Lưu URL hiện tại để sau khi đăng nhập có thể quay lại
+        if (window.location.pathname !== '/login') {
+          localStorage.setItem('redirect_after_login', window.location.href);
+          
+          // Chuyển hướng đến trang login của ứng dụng
+          // Trang này sẽ gọi Auth0 loginWithRedirect
+          window.location.href = '/login';
         }
       } 
-      // Nếu là API yêu cầu xác thực và ở trang checkout/payment
-      else if (window.location.pathname.includes('/checkout') || 
-               window.location.pathname.includes('/payment')) {
-        localStorage.setItem('redirect_after_login', window.location.href);
-        window.location.href = '/login';
+      
+      error.errorMessage = errorMessage;
+    } else if (error.request) {
+      // Lỗi request mà không nhận được response (CORS, network error)
+      console.error('Network Error or No Response:', error.message);
+      if (error.message.includes('Network Error')) {
+        console.error("Potential CORS issue or backend is down.");
       }
     }
-  } 
-  
-  return Promise.reject(error);
-});
+    
+    return Promise.reject(error);
+  }
+);
 
 // Function để xóa cache
 apiClient.clearCache = () => {

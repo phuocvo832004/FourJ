@@ -43,8 +43,7 @@ public class SecurityConfig {
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         
         // Vô hiệu hóa CSRF và cấu hình CORS
-        http.csrf(AbstractHttpConfigurer::disable)
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()));
+        http.csrf(AbstractHttpConfigurer::disable);
             
         // Thêm bộ lọc public endpoints trước bộ lọc OAuth2
         http.addFilterBefore(publicEndpointsFilter, BasicAuthenticationFilter.class);
@@ -78,23 +77,6 @@ public class SecurityConfig {
     @Bean
     public UserHeadersAuthenticationFilter userHeadersAuthenticationFilter() {
         return new UserHeadersAuthenticationFilter();
-    }
-    
-    @Bean
-    CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        
-        // Thay thế allowedOrigins bằng allowedOriginPatterns khi allowCredentials là true
-        configuration.setAllowedOriginPatterns(List.of("*"));
-        
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept"));
-        configuration.setExposedHeaders(Arrays.asList("Authorization"));
-        configuration.setAllowCredentials(true);
-        
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
     }
     
     // Loại bỏ Bean JwtDecoder không cần thiết nữa

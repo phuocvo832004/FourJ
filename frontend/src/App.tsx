@@ -22,6 +22,7 @@ import SearchResultsPage from './pages/SearchResultsPage';
 import ContactPage from './pages/ContactPage';
 import PaymentResultPage from './pages/PaymentResultPage';
 import ImageUploadExample from './pages/ImageUploadExample';
+import CallbackPage from './pages/CallbackPage';
 
 // Admin pages
 import AdminLayout from './components/admin/AdminLayout';
@@ -69,6 +70,7 @@ const Application = () => {
               <Route path="seller/pending" element={<SellerPendingPage />} />
               <Route path="payment-result" element={<PaymentResultPage />} />
               <Route path="image-upload-example" element={<ImageUploadExample />} />
+              <Route path="callback" element={<CallbackPage />} />
               
               {/* Protected routes - chỉ cần đăng nhập */}
               <Route element={<ProtectedRoute />}>

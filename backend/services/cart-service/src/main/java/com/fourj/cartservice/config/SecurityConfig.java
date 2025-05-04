@@ -37,8 +37,7 @@ public class SecurityConfig {
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         
         // Vô hiệu hóa CSRF và cấu hình CORS
-        http.csrf(AbstractHttpConfigurer::disable)
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()));
+        http.csrf(AbstractHttpConfigurer::disable);
         
         // Cấu hình các quy tắc yêu cầu HTTP
         http.authorizeHttpRequests(auth -> auth
@@ -55,6 +54,7 @@ public class SecurityConfig {
         return http.build();
     }
     
+    /* Comment out the entire bean
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
@@ -70,5 +70,6 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
+    */
 
 }

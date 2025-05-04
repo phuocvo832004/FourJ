@@ -1,21 +1,73 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
+import { auth0Config } from '../auth/auth0-config';
 
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const { loginWithRedirect } = useAuth0();
+  const { loginWithRedirect, isAuthenticated } = useAuth0();
   
-  // Form states
+  // Form states - những phần này không cần thiết khi sử dụng Auth0 hoàn toàn
+  // nhưng giữ lại UI để tương thích
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Kiểm tra nếu người dùng được chuyển hướng từ một trang khác
+  useEffect(() => {
+    const redirectUrl = localStorage.getItem('redirect_after_login');
+    
+    // Nếu người dùng đã đăng nhập và có URL redirect
+    if (isAuthenticated && redirectUrl) {
+      // Xóa URL redirect từ localStorage
+      localStorage.removeItem('redirect_after_login');
+      
+      // Chuyển hướng người dùng đến trang yêu cầu
+      window.location.href = redirectUrl;
+    }
+  }, [isAuthenticated]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Trong trường hợp thực tế, bạn sẽ gọi API để đăng nhập hoặc đăng ký
-    // Nhưng ở đây, chúng ta sẽ sử dụng Auth0
-    loginWithRedirect();
+    
+    // Lưu URL hiện tại (nếu có) để sau khi đăng nhập thành công có thể quay lại
+    const currentUrl = window.location.pathname;
+    if (currentUrl !== '/login' && currentUrl !== '/callback') {
+      localStorage.setItem('redirect_after_login', currentUrl);
+    }
+    
+    // Gọi Auth0 để đăng nhập
+    loginWithRedirect({
+      authorizationParams: {
+        redirect_uri: auth0Config.redirectUri,
+        audience: auth0Config.audience,
+        scope: auth0Config.scope
+      }
+    });
+  };
+
+  // Hàm đăng nhập với Google
+  const loginWithGoogle = () => {
+    loginWithRedirect({
+      authorizationParams: {
+        redirect_uri: auth0Config.redirectUri,
+        audience: auth0Config.audience,
+        scope: auth0Config.scope,
+        connection: 'google-oauth2'
+      }
+    });
+  };
+
+  // Hàm đăng nhập với Facebook
+  const loginWithFacebook = () => {
+    loginWithRedirect({
+      authorizationParams: {
+        redirect_uri: auth0Config.redirectUri,
+        audience: auth0Config.audience,
+        scope: auth0Config.scope,
+        connection: 'facebook'
+      }
+    });
   };
 
   return (
@@ -131,7 +183,7 @@ const LoginPage = () => {
           </div>
         )}
 
-        <div className="flex items-center justify-between my-2">
+        <div className="flex flex-col space-y-4">
           {isLogin && (
             <div className="flex items-center">
               <input
@@ -164,7 +216,7 @@ const LoginPage = () => {
         </div>
       </form>
 
-      <div className="mt-8">
+      <div className="mt-6">
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-300"></div>
@@ -176,7 +228,7 @@ const LoginPage = () => {
 
         <div className="mt-6 grid grid-cols-2 gap-4">
           <button
-            onClick={() => loginWithRedirect()}
+            onClick={loginWithGoogle}
             className="w-full flex items-center justify-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
           >
             <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
@@ -185,7 +237,7 @@ const LoginPage = () => {
             <span>Google</span>
           </button>
           <button
-            onClick={() => loginWithRedirect()}
+            onClick={loginWithFacebook}
             className="w-full flex items-center justify-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
           >
             <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor">

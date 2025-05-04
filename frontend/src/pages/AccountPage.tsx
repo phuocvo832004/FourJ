@@ -18,7 +18,7 @@ interface UserProfile {
   updatedAt: string;
 }
 
-// API Base URL
+// API Base URL - sử dụng đường dẫn tương đối để tận dụng proxy Vite
 const API_BASE_URL = '/api/iam';
 
 // Tạo instance axios với cấu hình mặc định
@@ -91,13 +91,27 @@ const AccountPage = () => {
     queryKey: ['userProfile'],
     queryFn: async () => {
       try {
-        const response = await api.get('/users/me');
+        // Đảm bảo token đã được lấy trước khi gọi API
+        const token = await getToken();
+        if (!token) {
+          throw new Error('Không có token xác thực');
+        }
+        
+        // Sử dụng axios trực tiếp với URL đầy đủ để đảm bảo proxy hoạt động
+        const response = await axios.get(`${API_BASE_URL}/users/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
         return response.data;
       } catch (error) {
         console.error('Error fetching user profile:', error);
         throw error;
       }
     },
+    // Chỉ enable khi đã authenticated, không đang loading, và gọi API sau khi đăng nhập thành công
     enabled: isAuthenticated && !isLoading
   });
 

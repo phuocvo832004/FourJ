@@ -5,6 +5,8 @@ import { Product } from '../types';
 import { formatCurrency } from '../utils/formatters';
 // Import hình ảnh sản phẩm
 import product1Image from '../assets/product-1.jpg';
+import apiClient from '../api/apiClient';
+import { AxiosError } from 'axios';
 
 interface Category {
   id: number;
@@ -26,27 +28,18 @@ const HomePage: React.FC = () => {
     const fetchHomeData = async () => {
       setIsLoading(true);
       try {
-        // Fetch featured products
-        // const productsResponse = await fetch('/api/products/featured');
-        // if (!productsResponse.ok) {
-        //   throw new Error('Không thể tải sản phẩm nổi bật');
-        // }
-        //const productsData = await productsResponse.ok ? await productsResponse.json() : [];
-        
         // Fetch categories
-        const categoriesResponse = await fetch('/api/categories');
-        if (!categoriesResponse.ok) {
-          throw new Error('Không thể tải danh mục sản phẩm');
-        }
-        
-        const categoriesData = await categoriesResponse.ok ? await categoriesResponse.json() : [];
+        const categoriesResponse = await apiClient.get('/categories');
+        const categoriesData = categoriesResponse.data;
         
         //setFeaturedProducts(productsData);
         setCategories(categoriesData);
         setError(null);
-      } catch (err) {
+      } catch (err: unknown) {
         console.error('Error fetching home data:', err);
-        setError('Không thể tải dữ liệu. Vui lòng thử lại sau.');
+        const axiosError = err as AxiosError<{message?: string}>;
+        const errorMsg = axiosError.response?.data?.message || 'Không thể tải dữ liệu. Vui lòng thử lại sau.';
+        setError(errorMsg);
         
         // Fallback mock data
         setFeaturedProducts([
@@ -57,7 +50,9 @@ const HomePage: React.FC = () => {
             description: 'Mô tả sản phẩm 1',
             image: product1Image,
             category: 'Điện tử',
-            isNew: true
+            isNew: true,
+            stockQuantity: 100,
+            isActive: true
           },
           {
             id: '2',
@@ -65,7 +60,9 @@ const HomePage: React.FC = () => {
             price: 149.99,
             description: 'Mô tả sản phẩm 2',
             image: product1Image,
-            category: 'Quần áo'
+            category: 'Quần áo',
+            stockQuantity: 100,
+            isActive: true
           },
           {
             id: '3',
@@ -73,7 +70,9 @@ const HomePage: React.FC = () => {
             price: 199.99,
             description: 'Mô tả sản phẩm 3',
             image: product1Image,
-            category: 'Đồ gia dụng'
+            category: 'Đồ gia dụng',
+            stockQuantity: 100,
+            isActive: true
           },
           {
             id: '4',
@@ -82,7 +81,8 @@ const HomePage: React.FC = () => {
             description: 'Mô tả sản phẩm 4',
             image: product1Image,
             category: 'Làm đẹp',
-            isNew: true
+            stockQuantity: 100,
+            isActive: true
           }
         ]);
         
