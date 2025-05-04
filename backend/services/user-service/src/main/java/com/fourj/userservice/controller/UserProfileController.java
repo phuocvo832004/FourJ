@@ -10,10 +10,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users/profile")
@@ -30,6 +33,7 @@ public class UserProfileController {
     @GetMapping("/me")
     public ResponseEntity<UserProfileDto> getCurrentUserProfile(@AuthenticationPrincipal KongUser kongUser) {
         String auth0Id = kongUser.getId();
+        UserProfileDto userProfileDto;
 
         if (!userProfileService.userProfileExists(auth0Id)) {
             // Tạo profile người dùng mới nếu chưa tồn tại
@@ -54,10 +58,19 @@ public class UserProfileController {
                 newUserProfile.setAvatarUrl(picture.toString());
             }
 
-            return new ResponseEntity<>(userProfileService.createUserProfile(newUserProfile), HttpStatus.CREATED);
+            userProfileDto = userProfileService.createUserProfile(newUserProfile);
+        } else {
+            userProfileDto = userProfileService.getUserProfileByAuth0Id(auth0Id);
         }
 
-        return ResponseEntity.ok(userProfileService.getUserProfileByAuth0Id(auth0Id));
+        // Lấy quyền từ Authentication object và thêm vào DTO
+        List<String> permissions = SecurityContextHolder.getContext().getAuthentication().getAuthorities()
+                .stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
+        userProfileDto.setPermissions(permissions);
+
+        return ResponseEntity.ok(userProfileDto);
     }
 
     @PutMapping("/me")

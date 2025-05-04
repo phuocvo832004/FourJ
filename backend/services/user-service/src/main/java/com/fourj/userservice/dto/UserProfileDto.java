@@ -1,16 +1,16 @@
 package com.fourj.userservice.dto;
 
 import com.fourj.userservice.model.UserProfile.VerificationStatus;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserProfileDto {
@@ -24,7 +24,7 @@ public class UserProfileDto {
     private String gender;
     private String avatarUrl;
     private String biography;
-    
+    private List<String> permissions;
     // Thông tin seller
     private boolean seller;
     private String storeName;

@@ -1,18 +1,7 @@
-// Data source để lấy Amazon Linux 2 AMI mới nhất
-data "aws_ami" "amazon_linux_2" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
-  }
-}
-
 // EC2 instances trong public subnets
 resource "aws_instance" "public" {
   count                       = length(var.public_subnet_ids)
-  ami                         = data.aws_ami.amazon_linux_2.id
+  ami                         = var.ami_id
   instance_type               = var.instance_type
   subnet_id                   = var.public_subnet_ids[count.index]
   vpc_security_group_ids      = [var.public_ec2_sg_id]
@@ -34,7 +23,7 @@ resource "aws_instance" "public" {
 // EC2 instances trong private subnets
 resource "aws_instance" "private" {
   count                  = length(var.private_subnet_ids)
-  ami                    = data.aws_ami.amazon_linux_2.id
+  ami                    = var.ami_id
   instance_type          = var.instance_type
   subnet_id              = var.private_subnet_ids[count.index]
   vpc_security_group_ids = [var.private_ec2_sg_id]

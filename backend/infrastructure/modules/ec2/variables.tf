@@ -29,7 +29,12 @@ variable "private_ec2_sg_id" {
 }
 
 variable "key_name" {
-  description = "Name of the key pair to use for SSH access"
+  description = "Name of the EC2 key pair to use for instances"
+  type        = string
+}
+
+variable "ami_id" {
+  description = "AMI ID for EC2 instances (Amazon Linux 2)"
   type        = string
 }
 

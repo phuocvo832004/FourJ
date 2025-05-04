@@ -13,8 +13,8 @@ variable "environment" {
   type        = string
 }
 
-variable "allowed_ssh_cidr" {
-  description = "CIDR block allowed for SSH access to public instances"
+variable "allowed_ssh_ip" {
+  description = "IP address allowed to SSH into the public EC2 instance. Use x.x.x.x/32 for a single IP."
   type        = string
-  default     = "0.0.0.0/0"  // Mặc định cho phép từ mọi nơi, nhưng nên thay đổi thành IP cụ thể của bạn
+  default     = "0.0.0.0/0" # Cảnh báo: Cho phép truy cập từ mọi IP, không an toàn cho môi trường production
 } 

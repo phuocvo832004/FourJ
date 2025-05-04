@@ -53,35 +53,22 @@ public class UserHeadersAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
             
-            // Tạo danh sách quyền từ header permissions
+            // Đọc quyền trực tiếp từ X-User-Permissions
             List<SimpleGrantedAuthority> authorities = new ArrayList<>();
             if (permissionsHeader != null && !permissionsHeader.isEmpty()) {
                 try {
+                    // Giả sử quyền được phân tách bằng dấu phẩy
                     String[] permissions = permissionsHeader.split(",");
                     authorities = Stream.of(permissions)
+                            .map(String::trim) // Trim whitespace
+                            .filter(p -> !p.isEmpty()) // Bỏ qua quyền rỗng
                             .map(SimpleGrantedAuthority::new)
                             .collect(Collectors.toList());
                 } catch (Exception e) {
                     logger.warn("Could not parse X-User-Permissions header: " + e.getMessage());
                 }
-            }
-            
-            // Thêm phân quyền dựa trên giá trị từ thông tin userInfo
-            if (userAttributes.containsKey("roles")) {
-                Object roles = userAttributes.get("roles");
-                if (roles instanceof List) {
-                    List<SimpleGrantedAuthority> finalAuthorities = authorities;
-                    ((List<?>) roles).forEach(role -> {
-                        if (role != null) {
-                            String roleStr = role.toString();
-                            if (roleStr.equals("admin")) {
-                                finalAuthorities.add(new SimpleGrantedAuthority("admin:access"));
-                            } else if (roleStr.equals("seller")) {
-                                finalAuthorities.add(new SimpleGrantedAuthority("seller:access"));
-                            }
-                        }
-                    });
-                }
+            } else {
+                 logger.warn("X-User-Permissions header is missing or empty.");
             }
             
             // Tạo đối tượng xác thực với thông tin người dùng

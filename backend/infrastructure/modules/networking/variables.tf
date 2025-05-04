@@ -1,7 +1,6 @@
 variable "aws_region" {
-  description = "AWS region"
+  description = "AWS region to deploy resources"
   type        = string
-  default     = "ap-southeast-1"
 }
 
 variable "project" {
@@ -15,16 +14,28 @@ variable "environment" {
 }
 
 variable "vpc_cidr" {
-  description = "CIDR block for VPC"
+  description = "CIDR block for the VPC"
   type        = string
 }
 
 variable "public_subnet_cidrs" {
-  description = "CIDR blocks for public subnets"
+  description = "List of CIDR blocks for public subnets"
   type        = list(string)
 }
 
 variable "private_subnet_cidrs" {
-  description = "CIDR blocks for private subnets"
+  description = "List of CIDR blocks for private subnets"
   type        = list(string)
+}
+
+variable "create_vpc" {
+  description = "Whether to create a new VPC"
+  type        = bool
+  default     = true
+}
+
+variable "vpc_id" {
+  description = "ID of existing VPC to use if create_vpc is false"
+  type        = string
+  default     = ""
 } 

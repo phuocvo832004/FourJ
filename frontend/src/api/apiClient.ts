@@ -64,8 +64,8 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
-  timeout: 10000,
-  withCredentials: true // Bật credentials để hỗ trợ cookie từ Kong OIDC
+  timeout: 15000,
+  withCredentials: true
 }) as ExtendedAxiosInstance;
 
 // Interceptor cho request - thêm token nếu có
@@ -96,10 +96,12 @@ apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) =>
 apiClient.interceptors.response.use(
   response => response,
   error => {
-    // Xử lý lỗi từ server
     if (error.response) {
       const { status, data, config } = error.response;
-      const errorMessage = data?.message || 'Lỗi không xác định';
+      console.error(`API Error (${status}):`, data);
+      console.error(`Request URL: ${config.url}`);
+      console.error(`Request Method: ${config.method}`);
+      console.error(`Request Headers:`, config.headers);
       
       // Xóa khỏi pending requests khi có lỗi
       const cacheKey = getCacheKey(config);
@@ -119,12 +121,12 @@ apiClient.interceptors.response.use(
         }
       } 
       
-      error.errorMessage = errorMessage;
+      error.errorMessage = data?.message || 'Lỗi không xác định';
     } else if (error.request) {
-      // Lỗi request mà không nhận được response (CORS, network error)
-      console.error('Network Error or No Response:', error.message);
+      console.error('Network Error:', error.message);
+      console.error('Request Details:', error.request);
       if (error.message.includes('Network Error')) {
-        console.error("Potential CORS issue or backend is down.");
+        console.error("CORS Error hoặc backend không hoạt động", error);
       }
     }
     

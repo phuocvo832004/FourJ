@@ -20,22 +20,28 @@ export const registerAuthCallback = (callback: () => Promise<string | null>) => 
 // Hàm trao đổi code với token thông qua backend
 export const exchangeCodeForToken = async (code: string): Promise<string | null> => {
   try {
-    // Gọi API của backend để trao đổi code lấy token
-    const response = await axios.post(`${auth0Config.audience}${auth0Config.kongAuthEndpoint}/token`, {
+    console.log("Exchanging code for token...");
+    
+    // Gọi API cụ thể không dùng biến config
+    const response = await axios.post(`http://localhost/api/iam/auth/callback`, {
       code,
       redirect_uri: auth0Config.redirectUri,
       client_id: auth0Config.clientId
+    }, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      withCredentials: true
     });
     
+    console.log("Token exchange response:", response.data);
+    
     if (response.data && response.data.access_token) {
-      // Lưu token và thời gian hết hạn
       accessToken = response.data.access_token;
       
-      // Tính toán thời gian hết hạn từ expires_in (số giây)
       if (response.data.expires_in) {
         tokenExpiryTime = Date.now() + (response.data.expires_in * 1000);
       } else {
-        // Mặc định 1 giờ nếu không có expires_in
         tokenExpiryTime = Date.now() + 60 * 60 * 1000;
       }
       
@@ -44,6 +50,15 @@ export const exchangeCodeForToken = async (code: string): Promise<string | null>
     return null;
   } catch (error) {
     console.error('Error exchanging code for token:', error);
+    // Thêm thông tin chi tiết về lỗi
+    if (axios.isAxiosError(error)) {
+      console.error('Axios error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        headers: error.response?.headers,
+        url: error.config?.url
+      });
+    }
     return null;
   }
 };

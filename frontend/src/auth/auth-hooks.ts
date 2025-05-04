@@ -1,162 +1,168 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useCallback, useEffect, useState } from "react";
-import { registerAuthCallback, clearToken } from './auth-service';
 import { auth0Config } from './auth0-config';
 import authApi from '../api/authApi';
+import { UserProfileDto } from "../models/UserProfileDto";
 
-// Interface bổ sung để đảm bảo typing chính xác
-interface TokenResponse {
-  access_token: string;
-  expires_in: number;
-  id_token: string;
-  refresh_token?: string;
-  scope?: string;
-  token_type: string;
+// Kiểu cho lỗi Auth0 mong đợi
+interface AuthError {
+  error: string;
+  error_description?: string; // Thêm các trường khác nếu cần
 }
+
+// Kiểu dữ liệu cho user state, kết hợp Auth0 và Backend
+// Thêm trường permissions (hoặc roles) từ UserProfileDto
+type AppUser = UserProfileDto & {
+  // Thêm các thuộc tính từ Auth0 nếu cần, ví dụ:
+  // sub?: string;
+  // nickname?: string;
+  // picture?: string;
+  // email_verified?: boolean;
+};
 
 // Hook để kiểm tra xem người dùng đã xác thực hay chưa
 export const useAuth = () => {
-  const { 
-    isAuthenticated, 
-    isLoading: auth0Loading, 
-    loginWithRedirect, 
-    logout,
-    user: auth0User,
-    getAccessTokenSilently 
+  const {
+    isAuthenticated: auth0IsAuthenticated, // Đổi tên để tránh xung đột
+    isLoading: auth0Loading,
+    loginWithRedirect,
+    logout: auth0Logout, // Đổi tên
+    // user: auth0User, // Không dùng trực tiếp nữa
+    getAccessTokenSilently
   } = useAuth0();
   
-  const [isLoading, setIsLoading] = useState(auth0Loading);
-  const [user, setUser] = useState(auth0User);
+  const [isAuthenticated, setIsAuthenticated] = useState(auth0IsAuthenticated);
+  const [isLoading, setIsLoading] = useState(true); // Bắt đầu là true
+  const [user, setUser] = useState<AppUser | null>(null); // State lưu thông tin user từ backend
+  const [accessToken, setAccessToken] = useState<string | null>(null); // Lưu access token nếu cần
   
-  // Khi auth0User thay đổi, gọi API backend để lấy thông tin user đầy đủ
-  useEffect(() => {
-    if (auth0User && isAuthenticated) {
-      // Đặt loading để hiển thị trạng thái tải
-      setIsLoading(true);
-      
-      // Lấy token từ Auth0
-      getAccessTokenSilently({
-        authorizationParams: {
-          audience: auth0Config.audience,
-          scope: auth0Config.scope,
-        },
-        cacheMode: "off"
-      }).then(() => {
-        // Gọi API backend để lấy thông tin user (token đã được thiết lập trong apiClient interceptor)
-        authApi.getAuthMe()
-          .then(response => {
-            // Cập nhật user state với dữ liệu từ backend
-            setUser({
-              ...auth0User,
-              ...response.data
-            });
-          })
-          .catch(error => {
-            console.error("Error fetching user data from backend:", error);
-          })
-          .finally(() => {
-            setIsLoading(false);
-          });
-      }).catch(error => {
-        console.error("Error getting token:", error);
-        setIsLoading(false);
-      });
-    } else {
-      setIsLoading(auth0Loading);
-    }
-  }, [auth0User, isAuthenticated, auth0Loading, getAccessTokenSilently]);
-  
-  // Hàm kiểm tra role của người dùng, đọc trực tiếp từ user object
-  const hasRole = useCallback((roleName: string): boolean => {
-    // Nếu user chưa load xong hoặc chưa đăng nhập, không có role
-    if (isLoading || !user) {
-      // console.log("hasRole: isLoading or no user");
-      return false;
-    }
-
-    // Lấy roles từ user object - cập nhật để phù hợp với Kong OIDC
-    // Kong OIDC chuẩn hóa roles trong X-User-Permissions hoặc thông qua claims trong token
-    const roles = user["https://myapp.example.com/roles"] || user.roles || [];
-
-    // Kiểm tra xem roles có phải là mảng và có chứa role cần tìm không
-    const result = Array.isArray(roles) && roles.includes(roleName);
-
-    return result;
-  }, [user, isLoading]); // Phụ thuộc vào user và isLoading để re-render khi chúng thay đổi
-
-  
-  // Hàm lấy token
-  const getToken = useCallback(async (): Promise<string | null> => {
+  // Hàm fetch thông tin user từ backend
+  const fetchUser = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const token = await getAccessTokenSilently({
-        authorizationParams: {
-          audience: auth0Config.audience,
-          scope: auth0Config.scope,
-        },
-        cacheMode: "off", // Tắt cache để tránh lỗi CORS
-        detailedResponse: true
-      }) as TokenResponse | string;
-      
-      // Nếu token là một object (điều này xảy ra khi detailedResponse: true)
-      if (typeof token === 'object' && token.access_token) {
-        return token.access_token;
-      }
-      
-      // Nếu token là string (trường hợp mặc định)
-      return token as string;
-    } catch (err: unknown) {
-      console.error("Error getting access token:", err);
-      
-      // Kiểm tra nếu đây là lỗi cần đăng nhập lại
-      if (err && typeof err === 'object' && 'error' in err) {
-        const authError = err as { error: string };
-        if (authError.error === 'login_required' || authError.error === 'consent_required') {
-          // Chuyển hướng người dùng đến trang đăng nhập 
-          loginWithRedirect({
+        // Gọi API backend để lấy thông tin user
+        // Đảm bảo API client của bạn tự động đính kèm token
+        // Đường dẫn phải chính xác: /api/users/profile/me
+        const response = await authApi.getAuthMe(); // Giả sử authApi.getAuthMe() gọi GET /api/users/profile/me
+        setUser(response.data as UserProfileDto); // Lưu thông tin user từ backend (bao gồm permissions)
+        setIsAuthenticated(true);
+    } catch (error) {
+        console.error("Error fetching user data from backend:", error);
+        setUser(null);
+        setIsAuthenticated(false);
+        // Có thể cần xử lý lỗi cụ thể, ví dụ: nếu lỗi 401 thì logout?
+    } finally {
+        setIsLoading(false);
+    }
+  }, []); // Không cần dependencies nếu authApi tự lấy token
+
+  // Lấy token và fetch user khi trạng thái Auth0 thay đổi
+  useEffect(() => {
+    const initAuth = async () => {
+      if (auth0IsAuthenticated) {
+        setIsLoading(true);
+        try {
+          // Lấy access token trước
+          const token = await getAccessTokenSilently({
             authorizationParams: {
               audience: auth0Config.audience,
               scope: auth0Config.scope,
-              redirect_uri: auth0Config.redirectUri
-            }
+            },
+            cacheMode: "off" // Quan trọng để tránh lỗi stale token/CORS
           });
+          setAccessToken(token); // Lưu token nếu cần cho các việc khác
+
+          // Sau khi có token, gọi fetchUser
+          // Token sẽ được interceptor của authApi tự động đính kèm
+          await fetchUser();
+
+        } catch (error) {
+          console.error("Error during auth init (getting token or fetching user):", error);
+          // Nếu lỗi là login_required, có thể không cần làm gì vì user chưa đăng nhập
+          // Sử dụng type guard để kiểm tra cấu trúc lỗi
+          const isAuthError = (e: unknown): e is AuthError => 
+            typeof e === 'object' && e !== null && 'error' in e;
+
+          if (isAuthError(error) && error.error !== 'login_required') {
+             // Xử lý các lỗi khác nếu cần, ví dụ logout
+             setIsAuthenticated(false);
+             setUser(null);
+             setAccessToken(null);
+             setIsLoading(false);
+          } else if (!isAuthError(error) || error.error !== 'login_required') { // Kiểm tra ngược lại
+             setIsLoading(false); // Chỉ set loading false nếu không phải lỗi login_required
+          }
+          // Nếu là login_required, auth0Loading sẽ tự xử lý
         }
+      } else {
+         // Nếu không xác thực bởi Auth0
+         setIsAuthenticated(false);
+         setUser(null);
+         setAccessToken(null);
+         setIsLoading(auth0Loading); // Đồng bộ trạng thái loading với Auth0
       }
-      
-      return null;
-    }
-  }, [getAccessTokenSilently, loginWithRedirect]);
-
-  // Đăng ký callback với AuthService khi component được mount
-  useEffect(() => {
-    registerAuthCallback(getToken);
-    
-    // Cleanup khi component unmount, không cần thiết trong trường hợp này
-    // vì AuthService là singleton, nhưng vẫn đảm bảo tính đúng đắn của code
-    return () => {
-      // Nếu cần, có thể thêm logic cleanup ở đây
     };
-  }, [getToken]); // Thêm getToken vào mảng dependency
+    initAuth();
+  }, [auth0IsAuthenticated, auth0Loading, getAccessTokenSilently, fetchUser]);
 
-  // Hàm logout cải tiến để xóa token trong AuthService
+  // Hàm kiểm tra role/permission, đọc từ user state (đã lấy từ backend)
+  const hasRole = useCallback((roleOrPermission: string): boolean => {
+    if (isLoading || !user || !user.permissions) {
+      return false;
+    }
+    // Kiểm tra trong danh sách permissions lấy từ API /me
+    return user.permissions.includes(roleOrPermission);
+  }, [user, isLoading]);
+
+  // Hàm getToken (giữ lại nếu cần gọi thủ công ở đâu đó)
+  const getToken = useCallback(async (): Promise<string | null> => {
+    if (accessToken) return accessToken; // Trả về token đã lưu nếu có
+
+    // Nếu chưa có, thử lấy lại (có thể không cần thiết nếu useEffect xử lý tốt)
+    try {
+       const token = await getAccessTokenSilently({
+            authorizationParams: {
+              audience: auth0Config.audience,
+              scope: auth0Config.scope,
+            },
+            cacheMode: "off"
+       });
+       setAccessToken(token);
+       return token;
+    } catch (err) {
+        console.error("Error getting access token manually:", err);
+         if (err && typeof err === 'object' && 'error' in err) {
+           const authError = err as { error: string };
+           if (authError.error === 'login_required' || authError.error === 'consent_required') {
+             // Có thể không cần login ở đây vì useEffect sẽ xử lý?
+             // loginWithRedirect({...});
+           }
+         }
+        return null;
+    }
+  }, [getAccessTokenSilently, accessToken]);
+
+  // Hàm logout: Clear state và gọi logout của Auth0
   const logoutUser = useCallback(() => {
-    // Xóa token trước khi logout
-    clearToken();
-    
-    // Gọi logout từ Auth0
-    logout({ 
-      logoutParams: { 
-        returnTo: window.location.origin 
+    setIsAuthenticated(false);
+    setUser(null);
+    setAccessToken(null);
+    // Có thể cần clear thêm state trong store (Redux, Zustand,...)
+    auth0Logout({
+      logoutParams: {
+        returnTo: window.location.origin
       }
     });
-  }, [logout]);
-  
+  }, [auth0Logout]);
+
   return {
     isAuthenticated,
     isLoading,
-    user,
-    login: loginWithRedirect, // Sử dụng trực tiếp từ useAuth0
-    logout: logoutUser, // Sử dụng hàm wrapper đã được cải tiến
-    getToken, // Giữ lại hàm này để các component có thể gọi trực tiếp
+    user, // Trả về user object đầy đủ từ backend
+    login: loginWithRedirect,
+    logout: logoutUser,
+    getToken, // Trả về hàm getToken nếu cần
     hasRole,
+    accessToken // Trả về token nếu cần
   };
 }; 
